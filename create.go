@@ -9,13 +9,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/creack/pty"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"golang.org/x/sys/unix"
 	"gopkg.in/lxc/go-lxc.v2"
 )
 
+// Create creates a single container instance from the given ContainerConfig.
+// Create is the first runtime method to call within the lifecycle of a container.
+// You may have to call Runtime.Delete to cleanup container runtime state,
+// if Create returns with an error.
 func (rt *Runtime) Create(ctx context.Context, cfg *ContainerConfig) (*Container, error) {
 	ctx, cancel := context.WithTimeout(ctx, rt.Timeouts.Create)
 	defer cancel()
@@ -28,23 +31,30 @@ func (rt *Runtime) Create(ctx context.Context, cfg *ContainerConfig) (*Container
 	c.RuntimeDir = filepath.Join(rt.Root, c.ContainerID)
 
 	if err := c.create(); err != nil {
-		return nil, errorf("failed to create container: %w", err)
+		return c, errorf("failed to create container: %w", err)
+	}
+
+	if rt.OnCreate != nil {
+		rt.OnCreate(ctx, c)
+	}
+	if c.OnCreate != nil {
+		c.OnCreate(ctx, c)
 	}
 
 	if err := configureContainer(rt, c); err != nil {
-		return nil, errorf("failed to configure container: %w", err)
+		return c, errorf("failed to configure container: %w", err)
 	}
 
 	if err := rt.runStartCmd(ctx, c); err != nil {
-		return nil, errorf("failed to run container process: %w", err)
+		return c, errorf("failed to run container process: %w", err)
 	}
 
-	if rt.Hooks.AfterCreate != nil {
-		defer rt.Hooks.AfterCreate(ctx, c)
-	}
 	return c, nil
 }
 
+// CheckSystem checks the hosts system configuration.
+// Unsupported runtime features are disabled and a warning message is logged.
+// CheckSystem should be called (once) before using the Runtime.
 func (rt *Runtime) CheckSystem() error {
 	err := canExecute(rt.Executables.Start, rt.Executables.Hook, rt.Executables.Init)
 	if err != nil {
@@ -355,44 +365,4 @@ func runStartCmdConsole(ctx context.Context, cmd *exec.Cmd, consoleSocket string
 		return fmt.Errorf("failed to send console fd: %w", err)
 	}
 	return ptmx.Close()
-}
-
-func setLog(c *Container) error {
-	// Never let lxc write to stdout, stdout belongs to the container init process.
-	// Explicitly disable it - allthough it is currently the default.
-	c.linuxcontainer.SetVerbosity(lxc.Quiet)
-	// The log level for a running container is set, and may change, per runtime call.
-	err := c.linuxcontainer.SetLogLevel(parseContainerLogLevel(c.LogLevel))
-	if err != nil {
-		return fmt.Errorf("failed to set container loglevel: %w", err)
-	}
-	if err := c.linuxcontainer.SetLogFile(c.LogFile); err != nil {
-		return fmt.Errorf("failed to set container log file: %w", err)
-	}
-	return nil
-}
-
-func parseContainerLogLevel(level string) lxc.LogLevel {
-	switch strings.ToLower(level) {
-	case "trace":
-		return lxc.TRACE
-	case "debug":
-		return lxc.DEBUG
-	case "info":
-		return lxc.INFO
-	case "notice":
-		return lxc.NOTICE
-	case "warn":
-		return lxc.WARN
-	case "error":
-		return lxc.ERROR
-	case "crit":
-		return lxc.CRIT
-	case "alert":
-		return lxc.ALERT
-	case "fatal":
-		return lxc.FATAL
-	default:
-		return lxc.WARN
-	}
 }
