@@ -15,11 +15,14 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// Environment variables are populated by default from this environment file.
-// Existing environment variables are preserved.
-var envFile = "/etc/default/lxcri"
-
-const defaultLogFile = "/var/log/lxcri/lxcri.log"
+var (
+	// Environment variables are populated by default from this environment file.
+	// Existing environment variables are preserved.
+	envFile        = "/etc/default/lxcri"
+	defaultLogFile = "/var/log/lxcri/lxcri.log"
+	version        = "undefined"
+	libexecDir     = "/usr/libexec/lxcri"
+)
 
 type app struct {
 	lxcri.Runtime
@@ -64,8 +67,6 @@ func (app *app) release() error {
 	}
 	return nil
 }
-
-var version string
 
 func main() {
 	app := cli.NewApp()
@@ -131,7 +132,7 @@ func main() {
 		},
 		&cli.BoolFlag{
 			Name:        "systemd-cgroup",
-			Usage:       "enable systemd cgroup",
+			Usage:       "enable support for systemd encoded cgroup path",
 			Destination: &clxc.SystemdCgroup,
 		},
 		&cli.StringFlag{
@@ -142,25 +143,11 @@ func main() {
 			Value:       "lxcri-monitor.slice",
 		},
 		&cli.StringFlag{
-			Name:        "cmd-init",
-			Usage:       "absolute path to container init executable",
-			EnvVars:     []string{"LXCRI_INIT_CMD"},
-			Value:       "/usr/local/bin/lxcri-init",
-			Destination: &clxc.Executables.Init,
-		},
-		&cli.StringFlag{
-			Name:        "cmd-start",
-			Usage:       "absolute path to container start executable",
-			EnvVars:     []string{"LXCRI_START_CMD"},
-			Value:       "/usr/local/bin/lxcri-start",
-			Destination: &clxc.Executables.Start,
-		},
-		&cli.StringFlag{
-			Name:        "container-hook",
-			Usage:       "absolute path to container hook executable",
-			EnvVars:     []string{"LXCRI_CONTAINER_HOOK"},
-			Value:       "/usr/local/bin/lxcri-container-hook",
-			Destination: &clxc.Executables.Hook,
+			Name:        "libexec",
+			Usage:       "directory to load runtime executables from",
+			EnvVars:     []string{"LXCRI_LIBEXEC"},
+			Value:       libexecDir,
+			Destination: &clxc.LibexecDir,
 		},
 		&cli.BoolFlag{
 			Name:        "apparmor",
@@ -344,7 +331,6 @@ func runCreateHook(err error) {
 		"RUNTIME_CMD=" + clxc.command,
 		"RUNTIME_PATH=" + clxc.containerConfig.RuntimePath(),
 		"BUNDLE_PATH=" + clxc.containerConfig.BundlePath,
-		"SPEC_PATH=" + clxc.containerConfig.SpecPath,
 		"LOG_FILE=" + clxc.logConfig.FilePath,
 	}
 	if err != nil {
@@ -480,6 +466,9 @@ func doDelete(ctx *cli.Context) error {
 	if err == lxcri.ErrNotExist {
 		clxc.Log.Info().Msg("container does not exist")
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	return clxc.Delete(context.Background(), c, ctx.Bool("force"))
