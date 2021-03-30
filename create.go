@@ -3,15 +3,11 @@ package lxcri
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/creack/pty"
 	"github.com/opencontainers/runtime-spec/specs-go"
-	"golang.org/x/sys/unix"
 	"gopkg.in/lxc/go-lxc.v2"
 )
 
@@ -20,9 +16,6 @@ import (
 // You may have to call Runtime.Delete to cleanup container runtime state,
 // if Create returns with an error.
 func (rt *Runtime) Create(ctx context.Context, cfg *ContainerConfig) (*Container, error) {
-	ctx, cancel := context.WithTimeout(ctx, rt.Timeouts.Create)
-	defer cancel()
-
 	if err := rt.checkConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -49,7 +42,9 @@ func (rt *Runtime) Create(ctx context.Context, cfg *ContainerConfig) (*Container
 		return c, errorf("failed to run container process: %w", err)
 	}
 
-	return c, nil
+	p := c.RuntimePath("container.json")
+	err := encodeFileJSON(p, c, os.O_EXCL|os.O_CREATE|os.O_RDWR, 0640)
+	return c, err
 }
 
 // CheckSystem checks the hosts system configuration.
@@ -323,46 +318,4 @@ func writeMasked(dst string, c *Container) error {
 		}
 	}
 	return f.Close()
-}
-
-func runStartCmdConsole(ctx context.Context, cmd *exec.Cmd, consoleSocket string) error {
-	dialer := net.Dialer{}
-	c, err := dialer.DialContext(ctx, "unix", consoleSocket)
-	if err != nil {
-		return fmt.Errorf("connecting to console socket failed: %w", err)
-	}
-	defer c.Close()
-
-	conn, ok := c.(*net.UnixConn)
-	if !ok {
-		return fmt.Errorf("expected a unix connection but was %T", conn)
-	}
-
-	if deadline, ok := ctx.Deadline(); ok {
-		err = conn.SetDeadline(deadline)
-		if err != nil {
-			return fmt.Errorf("failed to set connection deadline: %w", err)
-		}
-	}
-
-	sockFile, err := conn.File()
-	if err != nil {
-		return fmt.Errorf("failed to get file from unix connection: %w", err)
-	}
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to start with pty: %w", err)
-	}
-
-	// Send the pty file descriptor over the console socket (to the 'conmon' process)
-	// For technical backgrounds see:
-	// * `man sendmsg 2`, `man unix 3`, `man cmsg 1`
-	// * https://blog.cloudflare.com/know-your-scm_rights/
-	oob := unix.UnixRights(int(ptmx.Fd()))
-	// Don't know whether 'terminal' is the right data to send, but conmon doesn't care anyway.
-	err = unix.Sendmsg(int(sockFile.Fd()), []byte("terminal"), oob, nil, 0)
-	if err != nil {
-		return fmt.Errorf("failed to send console fd: %w", err)
-	}
-	return ptmx.Close()
 }

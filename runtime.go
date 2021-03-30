@@ -3,11 +3,13 @@ package lxcri
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/rs/zerolog"
 	"golang.org/x/sys/unix"
@@ -29,14 +31,6 @@ var (
 	ErrNotExist = fmt.Errorf("container does not exist")
 	ErrExist    = fmt.Errorf("container already exists")
 )
-
-// RuntimeTimeouts are timeouts for Runtime API calls.
-type RuntimeTimeouts struct {
-	Create time.Duration
-	Start  time.Duration
-	Kill   time.Duration
-	Delete time.Duration
-}
 
 // RuntimeFeatures are (security) features supported by the Runtime.
 // The supported features are enabled on any Container instance
@@ -61,7 +55,7 @@ type Hooks struct {
 
 type Runtime struct {
 	// Log is the logger used by the runtime.
-	Log zerolog.Logger
+	Log zerolog.Logger `json:"-"`
 	// Root is the file path to the runtime directory.
 	// Directories for containers created by the runtime
 	// are created within this directory.
@@ -74,8 +68,6 @@ type Runtime struct {
 	MonitorCgroup string
 	// LibexecDir is the the directory that contains the runtime executables.
 	LibexecDir string
-	// Timeouts are the runtime API command timeouts.
-	Timeouts RuntimeTimeouts
 	//
 	Features RuntimeFeatures
 
@@ -88,12 +80,6 @@ var DefaultRuntime = &Runtime{
 	SystemdCgroup: true,
 	LibexecDir:    "/usr/libexec/lxcri",
 
-	Timeouts: RuntimeTimeouts{
-		Create: time.Second * 60,
-		Start:  time.Second * 30,
-		Kill:   time.Second * 30,
-		Delete: time.Second * 60,
-	},
 	Features: RuntimeFeatures{
 		Seccomp:       true,
 		Capabilities:  true,
@@ -147,9 +133,6 @@ func (rt *Runtime) Load(cfg *ContainerConfig) (*Container, error) {
 }
 
 func (rt *Runtime) Start(ctx context.Context, c *Container) error {
-	ctx, cancel := context.WithTimeout(ctx, rt.Timeouts.Start)
-	defer cancel()
-
 	rt.Log.Info().Msg("notify init to start container process")
 
 	state, err := c.State()
@@ -165,7 +148,7 @@ func (rt *Runtime) Start(ctx context.Context, c *Container) error {
 
 func (rt *Runtime) runStartCmd(ctx context.Context, c *Container) (err error) {
 	// #nosec
-	cmd := exec.Command(rt.libexec(ExecStart), c.linuxcontainer.Name(), rt.Root, c.ConfigFilePath())
+	cmd := exec.Command(rt.libexec(ExecStart), c.LinuxContainer.Name(), rt.Root, c.ConfigFilePath())
 	cmd.Env = []string{}
 	cmd.Dir = c.RuntimePath()
 
@@ -198,16 +181,18 @@ func (rt *Runtime) runStartCmd(ctx context.Context, c *Container) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go func() {
-		// NOTE this goroutine may leak until lxcri-start is terminated
-		ps, err := cmd.Process.Wait()
-		if err != nil {
-			rt.Log.Error().Err(err).Msg("failed to wait for start process")
-		} else {
-			rt.Log.Warn().Int("pid", cmd.Process.Pid).Stringer("status", ps).Msg("start process terminated")
-		}
-		cancel()
-	}()
+	/*
+		go func() {
+			// NOTE this goroutine may leak until lxcri-start is terminated
+			ps, err := cmd.Process.Wait()
+			if err != nil {
+				rt.Log.Error().Err(err).Msg("failed to wait for start process")
+			} else {
+				rt.Log.Warn().Int("pid", cmd.Process.Pid).Stringer("status", ps).Msg("start process terminated")
+			}
+			cancel()
+		}()
+	*/
 
 	rt.Log.Debug().Msg("waiting for init")
 	if err := c.waitCreated(ctx); err != nil {
@@ -215,13 +200,55 @@ func (rt *Runtime) runStartCmd(ctx context.Context, c *Container) (err error) {
 	}
 
 	rt.Log.Info().Int("pid", cmd.Process.Pid).Msg("init process is running, container is created")
-	return CreatePidFile(c.PidFile, cmd.Process.Pid)
+	// FIXME set PID to container config ?
+	c.CreatedAt = time.Now()
+	c.Pid = cmd.Process.Pid
+	return nil
+}
+
+func runStartCmdConsole(ctx context.Context, cmd *exec.Cmd, consoleSocket string) error {
+	dialer := net.Dialer{}
+	c, err := dialer.DialContext(ctx, "unix", consoleSocket)
+	if err != nil {
+		return fmt.Errorf("connecting to console socket failed: %w", err)
+	}
+	defer c.Close()
+
+	conn, ok := c.(*net.UnixConn)
+	if !ok {
+		return fmt.Errorf("expected a unix connection but was %T", conn)
+	}
+
+	if deadline, ok := ctx.Deadline(); ok {
+		err = conn.SetDeadline(deadline)
+		if err != nil {
+			return fmt.Errorf("failed to set connection deadline: %w", err)
+		}
+	}
+
+	sockFile, err := conn.File()
+	if err != nil {
+		return fmt.Errorf("failed to get file from unix connection: %w", err)
+	}
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to start with pty: %w", err)
+	}
+
+	// Send the pty file descriptor over the console socket (to the 'conmon' process)
+	// For technical backgrounds see:
+	// * `man sendmsg 2`, `man unix 3`, `man cmsg 1`
+	// * https://blog.cloudflare.com/know-your-scm_rights/
+	oob := unix.UnixRights(int(ptmx.Fd()))
+	// Don't know whether 'terminal' is the right data to send, but conmon doesn't care anyway.
+	err = unix.Sendmsg(int(sockFile.Fd()), []byte("terminal"), oob, nil, 0)
+	if err != nil {
+		return fmt.Errorf("failed to send console fd: %w", err)
+	}
+	return ptmx.Close()
 }
 
 func (rt *Runtime) Kill(ctx context.Context, c *Container, signum unix.Signal) error {
-	ctx, cancel := context.WithTimeout(ctx, rt.Timeouts.Kill)
-	defer cancel()
-
 	state, err := c.ContainerState()
 	if err != nil {
 		return err
@@ -233,9 +260,6 @@ func (rt *Runtime) Kill(ctx context.Context, c *Container, signum unix.Signal) e
 }
 
 func (rt *Runtime) Delete(ctx context.Context, c *Container, force bool) error {
-	ctx, cancel := context.WithTimeout(ctx, rt.Timeouts.Delete)
-	defer cancel()
-
 	rt.Log.Info().Bool("force", force).Msg("delete container")
 	state, err := c.ContainerState()
 	if err != nil {
