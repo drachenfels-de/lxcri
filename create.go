@@ -232,7 +232,7 @@ func configureHostname(rt *Runtime, c *Container) error {
 
 	// Check if UTS namespace is shared, but not with the host.
 	uts := getNamespace(c.Spec, specs.UTSNamespace)
-	if uts == nil {
+	if uts == nil || uts.Path == "" {
 		return nil
 	}
 
