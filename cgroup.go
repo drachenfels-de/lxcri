@@ -122,6 +122,10 @@ func configureCgroupPath(rt *Runtime, c *Container) error {
 		c.CgroupDir = c.Spec.Linux.CgroupsPath
 	}
 
+	if c.CgroupDir == "" {
+		c.CgroupDir = filepath.Join(rt.PayloadCgroup, c.ContainerID+".scope")
+	}
+
 	if err := c.setConfigItem("lxc.cgroup.relative", "0"); err != nil {
 		return err
 	}
