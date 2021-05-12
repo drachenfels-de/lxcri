@@ -64,10 +64,14 @@ type Runtime struct {
 	// are created within this directory.
 	Root string `json:",omitempty"`
 
-	// Path for lxc monitor cgroup (lxc specific feature).
+	// MonitorCgroup is the path to the lxc monitor cgroup (lxc specific feature).
 	// This is the cgroup where the liblxc monitor process (lxcri-start)
 	// will be placed in. It's similar to /etc/crio/crio.conf#conmon_cgroup
 	MonitorCgroup string `json:",omitempty"`
+
+	// PayloadCgroup is the path to the default container payload cgroup.
+	// This path is used if specs.Spec.Linux.CgroupsPaths is empty.
+	PayloadCgroup string `json:",omitempty"`
 
 	// LibexecDir is the the directory that contains the runtime executables.
 	LibexecDir string `json:",omitempty"`

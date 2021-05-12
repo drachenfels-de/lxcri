@@ -58,6 +58,7 @@ var defaultApp = app{
 	Runtime: lxcri.Runtime{
 		Root:          "/run/lxcri",
 		MonitorCgroup: "lxcri-monitor.slice",
+		PayloadCgroup: "lxcri.slice",
 		LibexecDir:    defaultLibexecDir,
 		Features: lxcri.RuntimeFeatures{
 			Apparmor:      true,
