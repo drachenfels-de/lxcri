@@ -140,17 +140,17 @@ func (app *app) releaseLog() error {
 
 func loadConfig() error {
 	/*
-		clxc.configFile = defaultConfigFile
-		if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok {
-			clxc.configFile = val
-		}
-		if os.Getuid() != 0 {
+		if os.Getuid() == 0 {
+			clxc.configFile = defaultConfigFile
+			if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok {
+				clxc.configFile = val
+			}
+		} else {
 	*/
 	dirname, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	// get home from passwd ?
 	clxc.configFile = filepath.Join(dirname, defaultUserConfigFile)
 	//}
 

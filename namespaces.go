@@ -45,6 +45,11 @@ func configureNamespaces(c *Container) error {
 	cloneNamespaces := make([]string, 0, len(c.Spec.Linux.Namespaces))
 
 	for _, ns := range c.Spec.Linux.Namespaces {
+		if ns.Type == specs.UserNamespace {
+			if os.Getenv("_CONTAINERS_USERNS_CONFIGURED") != "" {
+				continue
+			}
+		}
 		if _, seen := seenNamespaceTypes[ns.Type]; seen {
 			return fmt.Errorf("duplicate namespace %s", ns.Type)
 		}

@@ -89,17 +89,29 @@ func touchFile(filePath string, perm os.FileMode) error {
 func configureInitUser(c *Container) error {
 	// TODO ensure that the user namespace is enabled
 	// See `man lxc.container.conf` lxc.idmap.
-	for _, m := range c.Spec.Linux.UIDMappings {
-		if err := c.setConfigItem("lxc.idmap", fmt.Sprintf("u %d %d %d", m.ContainerID, m.HostID, m.Size)); err != nil {
-			return err
-		}
-	}
 
-	for _, m := range c.Spec.Linux.GIDMappings {
-		if err := c.setConfigItem("lxc.idmap", fmt.Sprintf("g %d %d %d", m.ContainerID, m.HostID, m.Size)); err != nil {
-			return err
+	/*
+		c.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
+			//specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 1},
 		}
-	}
+		c.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
+			//specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 1},
+		}
+	*/
+
+	/*
+		for _, m := range c.Spec.Linux.UIDMappings {
+			if err := c.setConfigItem("lxc.idmap", fmt.Sprintf("u %d %d %d", m.ContainerID, m.HostID, m.Size)); err != nil {
+				return err
+			}
+		}
+
+		for _, m := range c.Spec.Linux.GIDMappings {
+			if err := c.setConfigItem("lxc.idmap", fmt.Sprintf("g %d %d %d", m.ContainerID, m.HostID, m.Size)); err != nil {
+				return err
+			}
+		}
+	*/
 
 	if err := c.setConfigItem("lxc.init.uid", fmt.Sprintf("%d", c.Spec.Process.User.UID)); err != nil {
 		return err

@@ -15,8 +15,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// https://systemd.io/CGROUP_DELEGATION/
+
 var cgroupRoot = "/sys/fs/cgroup"
 
+// liblxc itself does cgroup root detection in cgfsng
 func detectCgroupRoot() (string, error) {
 	var cgroupRoot string
 	if err := isFilesystem("/sys/fs/cgroup", "cgroup2"); err == nil {
@@ -28,12 +31,14 @@ func detectCgroupRoot() (string, error) {
 
 	// TODO use /proc/self/mounts to detect cgroupv2 root !
 
-	if os.Getuid() == 0 {
-		if cgroupRoot == "" {
-			return "", fmt.Errorf("failed to detect cgroupv2 root")
+	/*
+		if os.Getuid() == 0 {
+			if cgroupRoot == "" {
+				return "", fmt.Errorf("failed to detect cgroupv2 root")
+			}
+			return cgroupRoot, nil
 		}
-		return cgroupRoot, nil
-	}
+	*/
 
 	// Use the cgroup path of the runtime user if unprivileged.
 	data, err := os.ReadFile("/proc/self/cgroup")
@@ -71,9 +76,11 @@ func configureCgroup(rt *Runtime, c *Container) error {
 		return err
 	}
 
-	if err := checkCgroup(c); err != nil {
-		return err
-	}
+	/*
+		if err := checkCgroup(c); err != nil {
+			return err
+		}
+	*/
 
 	if devices := c.Spec.Linux.Resources.Devices; devices != nil {
 		if rt.Features.CgroupDevices {
@@ -126,7 +133,7 @@ func configureCgroupPath(rt *Runtime, c *Container) error {
 		c.CgroupDir = filepath.Join(rt.PayloadCgroup, c.ContainerID+".scope")
 	}
 
-	if err := c.setConfigItem("lxc.cgroup.relative", "0"); err != nil {
+	if err := c.setConfigItem("lxc.cgroup.relative", "1"); err != nil {
 		return err
 	}
 

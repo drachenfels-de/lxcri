@@ -68,7 +68,7 @@ func (rt *Runtime) Create(ctx context.Context, cfg *ContainerConfig) (*Container
 
 func configureContainer(rt *Runtime, c *Container) error {
 	if err := c.SetLog(c.LogFile, c.LogLevel); err != nil {
-		return errorf("failed to configure container log: %w", err)
+		return errorf("failed to configure container log (file:%s level:%s): %w", c.LogFile, c.LogLevel, err)
 	}
 
 	if err := configureHostname(rt, c); err != nil {
@@ -77,6 +77,13 @@ func configureContainer(rt *Runtime, c *Container) error {
 
 	if err := configureRootfs(rt, c); err != nil {
 		return fmt.Errorf("failed to configure rootfs: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(c.Spec.Root.Path, "run"), 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(c.Spec.Root.Path, ".lxcri"), 0755); err != nil {
+		return err
 	}
 
 	if err := configureInit(rt, c); err != nil {
@@ -92,6 +99,10 @@ func configureContainer(rt *Runtime, c *Container) error {
 			)
 		}
 	}
+
+	// Remove user namespace if no id mapping are provided and init
+	// user equals userid ?
+
 	if err := configureNamespaces(c); err != nil {
 		return fmt.Errorf("failed to configure namespaces: %w", err)
 	}
@@ -150,36 +161,47 @@ func configureContainer(rt *Runtime, c *Container) error {
 		return err
 	}
 
-	if !rt.hasCapability("mknod") {
-		rt.Log.Info().Msg("runtime does not have capability CAP_MKNOD")
-		// CAP_MKNOD is not granted `man capabilities`
-		// Bind mount devices instead.
-		newMounts := make([]specs.Mount, 0, len(c.Spec.Mounts)+len(c.Spec.Linux.Devices))
-		for _, m := range c.Spec.Mounts {
-			if m.Destination == "/dev" {
-				rt.Log.Info().Msg("removing old /dev mount")
-				continue
-			}
-			newMounts = append(newMounts, m)
-		}
-		newMounts = append(newMounts,
+	/*
+		c.Spec.Mounts = append([]specs.Mount{
 			specs.Mount{
-				Destination: "/dev", Source: "tmpfs", Type: "tmpfs",
-				Options: []string{"rw", "nosuid", "noexec", "relatime"},
+				Destination: "/run", Source: "tmpfs", Type: "tmpfs",
+				Options: []string{"rw", "nosuid", "nodev", "relatime", "inode64", "mode=755"},
 			},
-		)
-		rt.Log.Info().Msg("bind mount devices")
-		for _, device := range c.Spec.Linux.Devices {
+		}, c.Spec.Mounts...)
+	*/
+
+	//if !rt.hasCapability("mknod") {
+	rt.Log.Info().Msg("runtime does not have capability CAP_MKNOD")
+	// CAP_MKNOD is not granted `man capabilities`
+	// Bind mount devices instead.
+
+	newMounts := make([]specs.Mount, 0, len(c.Spec.Mounts)+len(c.Spec.Linux.Devices))
+	for _, m := range c.Spec.Mounts {
+		if m.Destination == "/dev" {
 			newMounts = append(newMounts,
 				specs.Mount{
-					Destination: device.Path, Source: device.Path, Type: "bind",
-					Options: []string{"bind", "create=file"},
+					Destination: "/dev", Source: "tmpfs", Type: "tmpfs",
+					Options: []string{"rw", "nosuid", "noexec", "relatime", "mode=755"}, //"inode64", "size=6122600k", "nr_inodes=1530650"},
 				},
 			)
+			continue
 		}
-		c.Spec.Mounts = newMounts
-		c.Spec.Linux.Devices = nil
+		newMounts = append(newMounts, m)
 	}
+
+	rt.Log.Info().Msg("bind mount devices")
+	for _, device := range c.Spec.Linux.Devices {
+		newMounts = append(newMounts,
+			specs.Mount{
+				Destination: device.Path, Source: device.Path, Type: "bind",
+				Options: []string{"bind", "create=file"},
+			},
+		)
+	}
+
+	c.Spec.Mounts = newMounts
+	c.Spec.Linux.Devices = nil
+	//}
 
 	if err := configureHooks(rt, c); err != nil {
 		return err

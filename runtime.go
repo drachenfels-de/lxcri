@@ -117,6 +117,10 @@ func (rt *Runtime) Init() error {
 
 	rt.keepEnv("HOME", "XDG_RUNTIME_DIR", "PATH")
 
+	cmd := exec.Command("cat /proc/self/mounts")
+	out, err := cmd.CombinedOutput()
+	rt.Log.Debug().Msgf("mounts %s : %s ", string(out), err)
+
 	err = canExecute(rt.libexec(ExecStart), rt.libexec(ExecHook), rt.libexec(ExecInit))
 	if err != nil {
 		return errorf("access check failed: %w", err)
@@ -131,6 +135,8 @@ func (rt *Runtime) Init() error {
 		rt.Log.Warn().Msgf("cgroup root detection failed: %s", err)
 	}
 	rt.Log.Info().Msgf("using cgroup root %s", cgroupRoot)
+
+	rt.Log.Info().Msgf("user PID:%d UID:%d EUID:%d GID:%d EGID:%d", os.Getpid(), os.Getuid(), os.Geteuid(), os.Getgid(), os.Getegid())
 
 	if !lxc.VersionAtLeast(3, 1, 0) {
 		return errorf("liblxc runtime version is %s, but >= 3.1.0 is required", lxc.Version())
