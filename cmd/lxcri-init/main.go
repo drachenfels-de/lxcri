@@ -104,6 +104,7 @@ func doInit(runtimeDir string, spec *specs.Spec) error {
 		return err
 	}
 
+
 	unix.Exec(cmdPath, spec.Process.Args, spec.Process.Env)
 	if err != nil {
 		return fmt.Errorf("exec failed: %w", err)
@@ -118,12 +119,6 @@ func readSyncfifo(filename string) error {
 	}
 	return f.Close()
 }
-
-/*
-func closeExtraFds() {
-	os.Open("/proc/self/fd")
-}
-*/
 
 func addEnvHome(spec *specs.Spec) {
 	// lookup users home directory in passwd.

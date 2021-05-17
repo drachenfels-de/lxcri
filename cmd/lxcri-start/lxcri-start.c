@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -51,6 +52,43 @@ int main(int argc, char **argv)
 	name = argv[1];
 	lxcpath = argv[2];
 	rcfile = argv[3];
+
+	/* Close all file descriptors but stdio (0,1,2).
+	 * To pass additional file descriptors to the runtime
+	 * in order to enable [socket activation][systemd-listen-fds]
+	 * the environment variable LISTEN_FDS can be used.
+	 * If LISTEN_FDS is set to a value n > 0, than all
+	 * filedescriptors > 2+n are kept open.
+	 */
+
+	int procfd;
+	DIR *dirp = NULL;
+	struct dirent *entry = NULL;
+	int keepfds = 0;
+	char *env_listen = getenv("LISTEN_FDS");
+
+	if (env_listen != NULL)
+		keepfds = atoi(env_listen);
+
+	procfd = open("/proc/self/fd", O_RDONLY | O_CLOEXEC);
+	if (procfd == -1)
+		ERROR("open /proc/self/fd failed");
+
+	dirp = fdopendir(procfd);
+	if (dirp == NULL)
+		ERROR("fdopendir for /proc/self/fd failed");
+
+	while ((entry = readdir(dirp)) != NULL) {
+		errno = 0; // reset errno from previous strtol or close
+		int xfd = strtol(entry->d_name, NULL, 10);
+		if (errno)
+			continue;
+
+		if ((xfd > 2 + keepfds) && (xfd != procfd))
+			close(xfd);
+	}
+
+	closedir(dirp);
 
 	c = lxc_container_new(name, lxcpath);
 	if (c == NULL)
