@@ -19,7 +19,9 @@ import (
 )
 
 var (
-	defaultConfigFile = "/etc/lxcri/lxcri.yaml"
+	defaultConfigFile     = "/etc/lxcri/lxcri.yaml"
+	defaultUserConfigFile = ".config/lxcri.yaml"
+
 	version           = "undefined"
 	defaultLibexecDir = "/usr/libexec/lxcri"
 )
@@ -54,6 +56,8 @@ type timeouts struct {
 	DeleteTimeout uint `json:",omitempty"`
 }
 
+// user default
+// lxcri --log-file ~/.cache/lxcri.log --container-log-file ~/.cache/lxcri.log --root ~/.cache/lxcri/run config --update-current
 var defaultApp = app{
 	Runtime: lxcri.Runtime{
 		Root:          "/run/lxcri",
@@ -135,14 +139,23 @@ func (app *app) releaseLog() error {
 }
 
 func loadConfig() error {
-	clxc.configFile = defaultConfigFile
-	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok {
-		clxc.configFile = val
+	/*
+		clxc.configFile = defaultConfigFile
+		if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok {
+			clxc.configFile = val
+		}
+		if os.Getuid() != 0 {
+	*/
+	dirname, err := os.UserHomeDir()
+	if err != nil {
+		return err
 	}
+	// get home from passwd ?
+	clxc.configFile = filepath.Join(dirname, defaultUserConfigFile)
+	//}
 
 	data, err := os.ReadFile(clxc.configFile)
-	// Don't fail if the default config file does not exist.
-	if os.IsNotExist(err) && clxc.configFile == defaultConfigFile {
+	if os.IsNotExist(err) {
 		return nil
 	}
 	if err != nil {
@@ -387,6 +400,10 @@ var createCmd = cli.Command{
 		&cli.StringFlag{
 			Name:  "pid-file",
 			Usage: "path to write container PID",
+		},
+		&cli.BoolFlag{
+			Name:  "no-new-keyring",
+			Usage: "unused -required by buildah",
 		},
 		&cli.UintFlag{
 			Name:        "timeout",
