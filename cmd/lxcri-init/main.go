@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/lxc/lxcri/pkg/specki"
@@ -104,6 +105,10 @@ func doInit(runtimeDir string, spec *specs.Spec) error {
 		return err
 	}
 
+	if err := closeExtraFds(); err != nil {
+		return err
+	}
+
 	unix.Exec(cmdPath, spec.Process.Args, spec.Process.Env)
 	if err != nil {
 		return fmt.Errorf("exec failed: %w", err)
@@ -119,11 +124,37 @@ func readSyncfifo(filename string) error {
 	return f.Close()
 }
 
-/*
-func closeExtraFds() {
-	os.Open("/proc/self/fd")
+func closeExtraFds() error {
+	dir, err := os.Open("/proc/self/fd")
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	val := os.Getenv("LISTEN_FDS")
+	listenFDs, err := strconv.Atoi(val)
+	if err != nil {
+		listenFDs = 0
+	}
+
+	for _, n := range names {
+		if n == "." || n == ".." {
+			continue
+		}
+		fd, err := strconv.Atoi(n)
+		if err != nil {
+			println("failed to parse file descriptor number /proc/self/fd/%s\n", n)
+			continue
+		}
+		if fd > 2+listenFDs {
+			unix.Close(fd)
+		}
+	}
+	return nil
 }
-*/
 
 func addEnvHome(spec *specs.Spec) {
 	// lookup users home directory in passwd.

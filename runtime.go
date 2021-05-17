@@ -197,6 +197,7 @@ func (rt *Runtime) checkSpec(spec *specs.Spec) error {
 func (rt *Runtime) keepEnv(names ...string) {
 	for _, n := range names {
 		if val := os.Getenv(n); val != "" {
+			rt.Log.Debug().Msgf("Keeping environment variable %q", n)
 			rt.env = append(rt.env, n+"="+val)
 		}
 	}
@@ -256,8 +257,13 @@ func (rt *Runtime) Start(ctx context.Context, c *Container) error {
 func (rt *Runtime) runStartCmd(ctx context.Context, c *Container) (err error) {
 	// #nosec
 	cmd := exec.Command(rt.libexec(ExecStart), c.LinuxContainer.Name(), rt.Root, c.ConfigFilePath())
-	cmd.Env = rt.env
+	cmd.Env = rt.env // environment variables required for liblxc
 	cmd.Dir = c.RuntimePath()
+
+	// environment variables required for lxcri-init
+	if err := c.setConfigItem("lxc.environment", "LISTEN_FDS="+os.Getenv("LISTEN_FDS")); err != nil {
+		return err
+	}
 
 	if c.ConsoleSocket == "" && !c.Spec.Process.Terminal {
 		// Inherit stdio from calling process (conmon).
