@@ -471,8 +471,24 @@ func (c *Container) SetLog(filename string, level string) error {
 	// Do not write to stdout by default.
 	// Stdout belongs to the container process.
 	// Explicitly disable it - allthough it is currently the default.
-	c.LinuxContainer.SetVerbosity(lxc.Quiet)
-	err := c.LinuxContainer.SetLogLevel(parseContainerLogLevel(level))
+
+	lxcLevel := parseContainerLogLevel(level)
+
+	// FIXME control verbosity (configuration setting ...)
+	verbose := false
+	if lxcLevel == lxc.TRACE {
+		if filename == "/dev/stderr" || filename == "/dev/stdout" ||
+			filename == "/proc/self/fd/1" || filename == "/proc/self/fd/2" {
+			verbose = true
+		}
+	}
+
+	if verbose {
+		c.LinuxContainer.SetVerbosity(lxc.Verbose)
+	} else {
+		c.LinuxContainer.SetVerbosity(lxc.Verbose)
+	}
+	err := c.LinuxContainer.SetLogLevel(lxcLevel)
 	if err != nil {
 		return fmt.Errorf("failed to set container loglevel: %w", err)
 	}
