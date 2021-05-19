@@ -139,18 +139,15 @@ func (app *app) releaseLog() error {
 }
 
 func configFilePath() string {
-	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok {
+	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok && val != "" {
 		return val
 	}
 
-	homedir, err := os.UserHomeDir()
-	if err == nil {
-		cfgFile := filepath.Join(homedir, defaultUserConfigFile)
+	if val, ok := os.LookupEnv("HOME"); ok && val != "" {
+		cfgFile := filepath.Join(val, defaultUserConfigFile)
 		if _, err := os.Stat(cfgFile); err == nil {
 			return cfgFile
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "failed to get HOME directory: %s\n", err)
 	}
 
 	return defaultConfigFile
