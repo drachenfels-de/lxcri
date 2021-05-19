@@ -19,7 +19,9 @@ import (
 )
 
 var (
-	defaultConfigFile = "/etc/lxcri/lxcri.yaml"
+	defaultConfigFile     = "/etc/lxcri/lxcri.yaml"
+	defaultUserConfigFile = ".config/lxcri.yaml"
+
 	version           = "undefined"
 	defaultLibexecDir = "/usr/libexec/lxcri"
 )
@@ -54,6 +56,8 @@ type timeouts struct {
 	DeleteTimeout uint `json:",omitempty"`
 }
 
+// user default
+// lxcri --log-file ~/.cache/lxcri.log --container-log-file ~/.cache/lxcri.log --root ~/.cache/lxcri/run config --update-current
 var defaultApp = app{
 	Runtime: lxcri.Runtime{
 		Root:          "/run/lxcri",
@@ -134,21 +138,38 @@ func (app *app) releaseLog() error {
 	return nil
 }
 
-func loadConfig() error {
-	clxc.configFile = defaultConfigFile
+func configFilePath() string {
 	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok {
-		clxc.configFile = val
+		return val
+	}
+
+	homedir, err := os.UserHomeDir()
+	if err == nil {
+		cfgFile := filepath.Join(homedir, defaultUserConfigFile)
+		if _, err := os.Stat(cfgFile); err == nil {
+			return cfgFile
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "failed to get HOME directory: %s\n", err)
+	}
+
+	return defaultConfigFile
+}
+
+func loadConfig() error {
+	clxc.configFile = configFilePath()
+
+	if clxc.configFile == "" {
+		return nil
 	}
 
 	data, err := os.ReadFile(clxc.configFile)
-	// Don't fail if the default config file does not exist.
-	if os.IsNotExist(err) && clxc.configFile == defaultConfigFile {
+	if os.IsNotExist(err) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-
 	return yaml.Unmarshal(data, &clxc)
 }
 
@@ -932,10 +953,10 @@ func doConfig(ctxcli *cli.Context) error {
 	}
 	if out != "" {
 		fmt.Printf("Writing to file %s\n", out)
-		if err := os.MkdirAll(filepath.Dir(out), 0750); err != nil {
+		if err := os.MkdirAll(filepath.Dir(out), 0755); err != nil {
 			return fmt.Errorf("failed to create config file parent directory: %w", err)
 		}
-		return os.WriteFile(out, data, 0640)
+		return os.WriteFile(out, data, 0644)
 	}
 	return nil
 }
