@@ -16,11 +16,11 @@
 */
 #define ENABLE_LXCINIT 0
 
-#define ERROR(format, ...)                                                  \
-	{                                                                   \
-		fprintf(stderr, "[lxcri-start] " format, ##__VA_ARGS__); \
-		ret = EXIT_FAILURE;                                         \
-		goto out;                                                   \
+#define ERROR(format, ...)                                                     \
+	{                                                                      \
+		fprintf(stderr, "[lxcri-start] " format, ##__VA_ARGS__);       \
+		ret = EXIT_FAILURE;                                            \
+		goto out;                                                      \
 	}
 
 /* NOTE lxc_execute.c was taken as guidline and some lines where copied. */
@@ -103,7 +103,9 @@ int main(int argc, char **argv)
 	c->daemonize = false;
 
 	if (!c->start(c, ENABLE_LXCINIT, NULL))
-		ERROR("monitor process pid=%d failed (container error_num:%d)\n", getpid(), c->error_num);
+		ERROR(
+		    "monitor process pid=%d failed (container error_num:%d)\n",
+		    getpid(), c->error_num);
 
 	/* Try to die with the same signal the task did. */
 	/* FIXME error_num is zero if init was killed with SIGHUP */
