@@ -172,11 +172,17 @@ func TestNonEmptyCgroup(t *testing.T) {
 	defer removeAll(t, cfg.Spec.Root.Path)
 
 	if os.Getuid() != 0 {
+		err := unix.Chmod(cfg.Spec.Root.Path, 0777)
+		require.NoError(t, err)
+
+		err = unix.Chmod(rt.Root, 0755)
+		require.NoError(t, err)
+
 		cfg.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: uint32(os.Getuid()), Size: 1},
+			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 		cfg.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: uint32(os.Getgid()), Size: 1},
+			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 	}
 
@@ -197,10 +203,10 @@ func TestNonEmptyCgroup(t *testing.T) {
 
 	if os.Getuid() != 0 {
 		cfg2.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: uint32(os.Getuid()), Size: 1},
+			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 		cfg2.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: uint32(os.Getgid()), Size: 1},
+			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 	}
 
@@ -239,9 +245,7 @@ func TestRuntimePrivileged(t *testing.T) {
 
 // The following tests require the following setup:
 
-// sudo /bin/sh -c "echo '$(whoami):1000:1' >> /etc/subuid"
 // sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subuid"
-// sudo /bin/sh -c "echo '$(whoami):1000:1' >> /etc/subgid"
 // sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subgid"
 // sudo chown -R $(whoami):$(whoami) /sys/fs/cgroup/unified$(cat /proc/self/cgroup  | grep '^0:' | cut -d: -f3)
 // sudo chown -R $(whoami):$(whoami) /sys/fs/cgroup$(cat /proc/self/cgroup  | grep '^0:' | cut -d: -f3)
@@ -274,28 +278,6 @@ func TestRuntimeUnprivileged(t *testing.T) {
 	}
 	cfg.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
 		specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
-	}
-
-	testRuntime(t, rt, cfg)
-}
-
-func TestRuntimeUnprivileged2(t *testing.T) {
-	t.Parallel()
-	rt := newRuntime(t)
-	defer removeAll(t, rt.Root)
-
-	cfg := newConfig(t, "lxcri-test")
-	defer removeAll(t, cfg.Spec.Root.Path)
-
-	if os.Getuid() != 0 {
-		cfg.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: uint32(os.Getuid()), Size: 1},
-			//specs.LinuxIDMapping{ContainerID: 1, HostID: 20000, Size: 65536},
-		}
-		cfg.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: uint32(os.Getgid()), Size: 1},
-			//specs.LinuxIDMapping{ContainerID: 1, HostID: 20000, Size: 65536},
-		}
 	}
 
 	testRuntime(t, rt, cfg)
