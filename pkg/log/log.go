@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -28,12 +27,11 @@ func init() {
 	zerolog.LevelFieldName = "l"
 	zerolog.MessageFieldName = "m"
 
-	// match liblxc timestamp format
 	zerolog.TimestampFieldName = "t"
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
+
+	// liblxc timestamp format
 	//zerolog.TimeFieldFormat = "20060102150405.000"
-	zerolog.TimestampFunc = func() time.Time {
-		return time.Now().UTC()
-	}
 
 	zerolog.CallerFieldName = "c"
 	zerolog.CallerMarshalFunc = func(file string, line int) string {
@@ -68,5 +66,5 @@ func NewLogger(out io.Writer, level zerolog.Level) zerolog.Context {
 
 // ConsoleLogger returns a new zerlog.Logger suited for console usage (e.g unit tests)
 func ConsoleLogger(color bool, level zerolog.Level) zerolog.Logger {
-	return zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, NoColor: !color}).Level(level).With().Timestamp().Caller().Logger()
+	return zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, NoColor: !color, TimeFormat: "15:04:05.000"}).Level(level).With().Timestamp().Caller().Logger()
 }
