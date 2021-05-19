@@ -15,6 +15,7 @@ LDFLAGS=-X main.version=$(COMMIT) -X main.defaultLibexecDir=$(LIBEXEC_DIR)
 CC ?= cc
 SHELL_SCRIPTS = $(shell find . -name \*.sh)
 GO_SRC = $(shell find . -name \*.go | grep -v _test.go)
+C_SRC = $(shell find . -name \*.c)
 TESTCOUNT ?= 1
 
 all: fmt test
@@ -27,6 +28,7 @@ update-tools:
 fmt:
 	go fmt ./...
 	shfmt -w $(SHELL_SCRIPTS)
+	clang-format -i --style=file $(C_SRC)
 	golint ./...
 	go mod tidy
 	staticcheck ./...
