@@ -156,8 +156,8 @@ func (rt *Runtime) Init() error {
 		return errorf("liblxc runtime version is %s, but >= 3.1.0 is required", lxc.Version())
 	}
 
-	if !lxc.VersionAtLeast(4, 0, 5) {
-		rt.Log.Warn().Msgf("liblxc runtime version >= 4.0.5 is recommended (was %s)", lxc.Version())
+	if !lxc.VersionAtLeast(4, 0, 9) {
+		rt.Log.Warn().Msgf("liblxc runtime version >= 4.0.9 is required for lxc.init.groups support (was %s)", lxc.Version())
 	}
 
 	rt.Hooks.CreateContainer = []specs.Hook{

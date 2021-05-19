@@ -8,7 +8,7 @@ a drop-in container runtime replacement for use by [CRI-O](https://github.com/ku
 
 ### OCI compliance
 
-With liblxc starting from [lxc-4.0.0-927-gb5daeddc5](https://github.com/lxc/lxc/commit/b5daeddc5afce1cad4915aef3e71fdfe0f428709)
+With liblxc starting from [4.0.9](https://linuxcontainers.org/lxc/news/#lxc-409-lts-has-been-released)
 it passes all sonobuoy conformance tests.
 
 ## Build
