@@ -80,12 +80,18 @@ type Runtime struct {
 	// created by the runtime.
 	Features RuntimeFeatures
 
+	specs.Hooks `json:",omitempty"`
+
 	// Environment passed to `lxcri-start`
 	env []string
 
 	caps capability.Capabilities
 
-	specs.Hooks `json:",omitempty"`
+	// Runtime is running within a preconfigured user namespace.
+	// This is set by `buildah` when runtime is called from a non-root user.
+	// The user namespace must be dropped from the namespace list.
+	// Runtime user detection using os.Getuid() or os.Geteuid() will not work.
+	usernsConfigured bool
 }
 
 func (rt *Runtime) libexec(name string) string {
@@ -101,11 +107,25 @@ func (rt *Runtime) hasCapability(s string) bool {
 	return rt.caps.Get(capability.EFFECTIVE, c)
 }
 
+func (rt *Runtime) isPrivileged() bool {
+	if rt.usernsConfigured {
+		// FIXME this might be wrong if the runtime was started
+		// in a preconfigured user namespace from root and
+		// the uidmap maps the root user to itself.
+		return false
+	}
+	// FIXME use os.Geteuid() ?
+	return os.Getuid() == 0
+}
+
 // Init initializes the runtime instance.
 // It creates required directories and checks the runtimes system configuration.
 // Unsupported runtime features are disabled and a warning message is logged.
 // Init must be called once for a runtime instance before calling any other method.
 func (rt *Runtime) Init() error {
+
+	_, rt.usernsConfigured = os.LookupEnv("_CONTAINERS_USERNS_CONFIGURED")
+
 	caps, err := capability.NewPid2(0)
 	if err != nil {
 		return errorf("failed to create capabilities object: %w", err)
@@ -126,7 +146,7 @@ func (rt *Runtime) Init() error {
 		return errorf("procfs not mounted on /proc: %w", err)
 	}
 
-	cgroupRoot, err = detectCgroupRoot()
+	cgroupRoot, err = detectCgroupRoot(rt)
 	if err != nil {
 		rt.Log.Warn().Msgf("cgroup root detection failed: %s", err)
 	}
@@ -196,7 +216,7 @@ func (rt *Runtime) checkSpec(spec *specs.Spec) error {
 
 func (rt *Runtime) keepEnv(names ...string) {
 	for _, n := range names {
-		if val := os.Getenv(n); val != "" {
+		if val, yes := os.LookupEnv(n); yes {
 			rt.Log.Debug().Msgf("Keeping environment variable %q", n)
 			rt.env = append(rt.env, n+"="+val)
 		}
@@ -280,7 +300,7 @@ func (rt *Runtime) runStartCmd(ctx context.Context, c *Container) (err error) {
 
 	rt.Log.Debug().Msg("starting lxc monitor process")
 	if c.ConsoleSocket != "" {
-		err = runStartCmdConsole(ctx, cmd, c.ConsoleSocket)
+		err = rt.runStartCmdConsole(ctx, cmd, c.ConsoleSocket)
 	} else {
 		err = cmd.Start()
 	}
@@ -310,7 +330,8 @@ func (rt *Runtime) runStartCmd(ctx context.Context, c *Container) (err error) {
 	return nil
 }
 
-func runStartCmdConsole(ctx context.Context, cmd *exec.Cmd, consoleSocket string) error {
+func (rt *Runtime) runStartCmdConsole(ctx context.Context, cmd *exec.Cmd, consoleSocket string) error {
+	rt.Log.Debug().Msgf("running command in console %s", consoleSocket)
 	dialer := net.Dialer{}
 	c, err := dialer.DialContext(ctx, "unix", consoleSocket)
 	if err != nil {

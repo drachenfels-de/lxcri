@@ -188,6 +188,9 @@ func AllowEssentialDevices(spec *specs.Spec) error {
 		}
 	}
 
+	if spec.Linux.Resources == nil {
+		spec.Linux.Resources = &specs.LinuxResources{}
+	}
 	spec.Linux.Resources.Devices = append(spec.Linux.Resources.Devices, EssentialDevicesAllow...)
 	return nil
 }

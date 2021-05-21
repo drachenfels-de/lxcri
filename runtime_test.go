@@ -27,8 +27,14 @@ func init() {
 	if val, ok := os.LookupEnv("LXCRI_LIBEXEC"); ok {
 		libexecDir = val
 	}
-	if val, ok := os.LookupEnv("HOME"); ok {
+	if val, ok := os.LookupEnv("LXCRI_ROOT"); ok {
 		tmpRoot = val
+	} else {
+		homedir, err := os.UserHomeDir()
+		if err != nil {
+			panic(err)
+		}
+		tmpRoot = homedir
 	}
 }
 

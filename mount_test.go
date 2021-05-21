@@ -81,3 +81,12 @@ func TestFilterMountOptions(t *testing.T) {
 	out = filterMountOptions(&rt, "nosuchfs", opts)
 	require.Equal(t, opts, out)
 }
+
+// https://github.com/golang/go/wiki/SliceTricks
+func TestSliceDelete(t *testing.T) {
+	a := []int{1, 2, 3}
+	// i'll probably never get used to this syntax
+	// it always seems to me like an out-of-bounds access.
+	a1 := append(a[:2], a[2+1:]...)
+	require.Equal(t, a[:2], a1)
+}

@@ -104,6 +104,7 @@ func doInit(runtimeDir string, spec *specs.Spec) error {
 		return err
 	}
 
+	unix.Unmount("/.lxcri", unix.MNT_DETACH)
 
 	unix.Exec(cmdPath, spec.Process.Args, spec.Process.Env)
 	if err != nil {

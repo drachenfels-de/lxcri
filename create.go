@@ -68,7 +68,7 @@ func (rt *Runtime) Create(ctx context.Context, cfg *ContainerConfig) (*Container
 
 func configureContainer(rt *Runtime, c *Container) error {
 	if err := c.SetLog(c.LogFile, c.LogLevel); err != nil {
-		return errorf("failed to configure container log: %w", err)
+		return errorf("failed to configure container log (file:%s level:%s): %w", c.LogFile, c.LogLevel, err)
 	}
 
 	if err := configureHostname(rt, c); err != nil {
@@ -79,12 +79,26 @@ func configureContainer(rt *Runtime, c *Container) error {
 		return fmt.Errorf("failed to configure rootfs: %w", err)
 	}
 
+	if err := os.MkdirAll(filepath.Join(c.Spec.Root.Path, "run"), 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(c.Spec.Root.Path, ".lxcri"), 0755); err != nil {
+		return err
+	}
+
 	if err := configureInit(rt, c); err != nil {
 		return fmt.Errorf("failed to configure init: %w", err)
 	}
 
-	if os.Getuid() != 0 {
-		// ensure user namespace is enabled
+	if rt.usernsConfigured {
+		namesp := c.Spec.Linux.Namespaces
+		for i, n := range namesp {
+			if n.Type == specs.UserNamespace {
+				rt.Log.Warn().Msg("Preconfigured user namespace is removed from the namespace list.")
+				c.Spec.Linux.Namespaces = append(namesp[0:i], namesp[i+1:]...)
+			}
+		}
+	} else if os.Getuid() != 0 {
 		if !isNamespaceEnabled(c.Spec, specs.UserNamespace) {
 			rt.Log.Warn().Msg("unprivileged runtime - enabling user namespace")
 			c.Spec.Linux.Namespaces = append(c.Spec.Linux.Namespaces,
@@ -92,6 +106,7 @@ func configureContainer(rt *Runtime, c *Container) error {
 			)
 		}
 	}
+
 	if err := configureNamespaces(c); err != nil {
 		return fmt.Errorf("failed to configure namespaces: %w", err)
 	}
@@ -135,7 +150,7 @@ func configureContainer(rt *Runtime, c *Container) error {
 			return fmt.Errorf("failed to configure capabilities: %w", err)
 		}
 	} else {
-		rt.Log.Warn().Msg("capabilities feature is disabled - running with runtime privileges")
+		rt.Log.Warn().Msg("capabilities feature is disabled - container inherits privileges of the runtime process")
 	}
 
 	// make sure autodev is disabled
@@ -150,33 +165,35 @@ func configureContainer(rt *Runtime, c *Container) error {
 		return err
 	}
 
-	if !rt.hasCapability("mknod") {
+	// if runtime process is not privileged or CAP_MKNOD is not granted `man capabilities`
+	// then bind mount devices instead.
+	if !rt.isPrivileged() || !rt.hasCapability("mknod") {
 		rt.Log.Info().Msg("runtime does not have capability CAP_MKNOD")
-		// CAP_MKNOD is not granted `man capabilities`
-		// Bind mount devices instead.
 		newMounts := make([]specs.Mount, 0, len(c.Spec.Mounts)+len(c.Spec.Linux.Devices))
 		for _, m := range c.Spec.Mounts {
 			if m.Destination == "/dev" {
-				rt.Log.Info().Msg("removing old /dev mount")
+				os.MkdirAll(filepath.Join(c.Spec.Root.Path, "/dev"), 0755)
+				newMounts = append(newMounts,
+					specs.Mount{
+						Destination: "/dev", Source: "tmpfs", Type: "tmpfs",
+						Options: []string{"rw", "nosuid", "relatime", "noexec", "inode64", "nr_inodes=1530650", "size=6122600k", "mode=755"},
+						// rw,nosuid,relatime,size=6122600k,nr_inodes=1530650,mode=755,inode64
+					},
+				)
+				rt.Log.Info().Msg("device files are bind mounted")
+				for _, device := range c.Spec.Linux.Devices {
+					newMounts = append(newMounts,
+						specs.Mount{
+							Destination: device.Path, Source: device.Path, Type: "bind",
+							Options: []string{"bind"},
+						},
+					)
+				}
 				continue
 			}
 			newMounts = append(newMounts, m)
 		}
-		newMounts = append(newMounts,
-			specs.Mount{
-				Destination: "/dev", Source: "tmpfs", Type: "tmpfs",
-				Options: []string{"rw", "nosuid", "noexec", "relatime"},
-			},
-		)
-		rt.Log.Info().Msg("bind mount devices")
-		for _, device := range c.Spec.Linux.Devices {
-			newMounts = append(newMounts,
-				specs.Mount{
-					Destination: device.Path, Source: device.Path, Type: "bind",
-					Options: []string{"bind", "create=file"},
-				},
-			)
-		}
+
 		c.Spec.Mounts = newMounts
 		c.Spec.Linux.Devices = nil
 	}

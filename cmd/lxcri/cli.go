@@ -409,6 +409,10 @@ var createCmd = cli.Command{
 			Name:  "pid-file",
 			Usage: "path to write container PID",
 		},
+		&cli.BoolFlag{
+			Name:  "no-new-keyring",
+			Usage: "unused -required by buildah",
+		},
 		&cli.UintFlag{
 			Name:        "timeout",
 			Usage:       "maximum duration in seconds for create to complete",
@@ -446,7 +450,9 @@ func doCreate(ctxcli *cli.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	if err := doCreateInternal(ctx, &cfg, pidFile); err != nil {
+	err = doCreateInternal(ctx, &cfg, pidFile)
+	if err != nil {
+		clxc.Log.Error().Msgf("failed to create container: %s", err)
 		// Create a new context because create may fail with a timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(clxc.Timeouts.DeleteTimeout)*time.Second)
 		defer cancel()
@@ -500,6 +506,7 @@ func doStart(ctxcli *cli.Context) error {
 	defer cancel()
 
 	if err := doStartInternal(ctx); err != nil {
+		clxc.Log.Error().Msgf("failed to start  container: %s", err)
 		//  a new context because start may fail with a timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(clxc.Timeouts.DeleteTimeout)*time.Second)
 		defer cancel()

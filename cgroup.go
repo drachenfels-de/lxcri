@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/fsnotify/fsnotify"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"golang.org/x/sys/unix"
 )
 
 var cgroupRoot = "/sys/fs/cgroup"
 
-func detectCgroupRoot() (string, error) {
+// liblxc itself does cgroup root detection in cgfsng
+func detectCgroupRoot(rt *Runtime) (string, error) {
 	var cgroupRoot string
 	if err := isFilesystem("/sys/fs/cgroup", "cgroup2"); err == nil {
 		cgroupRoot = "/sys/fs/cgroup"
@@ -26,29 +26,34 @@ func detectCgroupRoot() (string, error) {
 		cgroupRoot = "/sys/fs/cgroup/unified"
 	}
 
-	// TODO use /proc/self/mounts to detect cgroupv2 root !
-
-	if os.Getuid() == 0 {
+	if rt.isPrivileged() {
 		if cgroupRoot == "" {
 			return "", fmt.Errorf("failed to detect cgroupv2 root")
 		}
 		return cgroupRoot, nil
 	}
 
-	// Use the cgroup path of the runtime user if unprivileged.
+	cg, err := getProcessCgroup()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cgroupRoot, cg), nil
+}
+
+func getProcessCgroup() (string, error) {
 	data, err := os.ReadFile("/proc/self/cgroup")
 	if err != nil {
 		return cgroupRoot, fmt.Errorf("failed to load /proc/self/cgroup: %s", err)
 	}
 	lines := strings.Split(string(data), "\n")
-	// get cgroup path from '0::/user.slice/user-0.slice/session-52.scope'
+	// get cgroup path from a value like '0::/user.slice/user-0.slice/session-52.scope'
 	for _, line := range lines {
 		vals := strings.SplitN(line, ":", 3)
 		if len(vals) == 3 && vals[0] == "0" {
-			return filepath.Join(cgroupRoot, vals[2]), nil
+			return vals[2], nil
 		}
 	}
-	return cgroupRoot, fmt.Errorf("failed to parse cgroup from /proc/self/cgroup")
+	return "", fmt.Errorf("failed to parse cgroup from /proc/self/cgroup")
 }
 
 // checkCgroup checks if the cgroup of the container is non-empty.
@@ -126,8 +131,14 @@ func configureCgroupPath(rt *Runtime, c *Container) error {
 		c.CgroupDir = filepath.Join(rt.PayloadCgroup, c.ContainerID+".scope")
 	}
 
-	if err := c.setConfigItem("lxc.cgroup.relative", "0"); err != nil {
-		return err
+	if rt.isPrivileged() {
+		if err := c.setConfigItem("lxc.cgroup.relative", "0"); err != nil {
+			return err
+		}
+	} else {
+		if err := c.setConfigItem("lxc.cgroup.relative", "1"); err != nil {
+			return err
+		}
 	}
 
 	// @since lxc @a900cbaf257c6a7ee9aa73b09c6d3397581d38fb
@@ -253,6 +264,10 @@ func configureCPUController(clxc *Runtime, slinux *specs.LinuxCPU) error {
 	// Mems string `json:"mems,omitempty"`
 	return nil
 }
+
+// FIXME Register containers using the systemd DBUS API see https://systemd.io/CGROUP_DELEGATION/
+// Using the systemd DBUS API is the only way for proper support of unprivileged containers.
+// `systemd-run --user --scope cat /proc/self/cgroup`
 
 // https://kubernetes.io/docs/setup/production-environment/container-runtimes/
 // kubelet --cgroup-driver systemd --cgroups-per-qos
