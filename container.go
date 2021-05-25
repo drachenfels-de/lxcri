@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lxc/go-lxc"
 	"github.com/lxc/lxcri/pkg/specki"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/rs/zerolog"
 	"golang.org/x/sys/unix"
-	"gopkg.in/lxc/go-lxc.v2"
 )
 
 // ContainerConfig is the configuration for a single Container instance.
