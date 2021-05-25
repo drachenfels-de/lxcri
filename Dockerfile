@@ -1,33 +1,92 @@
-FROM ubuntu:latest
-ARG installcmd=install_all
+FROM ubuntu:latest as build-base
+RUN apt-get update
+RUN apt-get install -yy build-essential
 
-#ENV PKGS="psmisc util-linux"
+FROM ubuntu:latest as build-go
+ARG GOLANG
+WORKDIR /usr/local
+ADD $GOLANG .
+ENV PATH="/usr/local/go/bin:${PATH}"
 
-ENV GOLANG_SRC=https://golang.org/dl/go1.16.3.linux-amd64.tar.gz
-ENV GOLANG_CHECKSUM=951a3c7c6ce4e56ad883f97d9db74d3d6d80d5fec77455c6ada6c1f7ac4776d2
+# https://github.com/containers/conmon/archive/refs/tags/v2.0.27.tar.gz
+# https://github.com/containers/conmon/releases/download/v2.0.27/conmon.amd64
+#FROM build-base AS conmon
+#ARG CONMON_SRC
+#WORKDIR /tmp/build
+#COPY $CONMON_SRC .
+#RUN tar -xf $(basename $CONMON_SRC) --strip-components=1
+#RUN make
 
-ENV CNI_PLUGINS_GIT_REPO=https://github.com/containernetworking/plugins.git
-ENV CNI_PLUGINS_GIT_VERSION=v0.9.1
+# https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz
+# https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz.sha256
+#FROM golang:latest as cni-plugins
+#ARG CNI_PLUGINS_SRC
+#WORKDIR /tmp/build
+#COPY $CNI_PLUGINS_SRC .
+#RUN tar -xf $(basename $CNI_SRC) --strip-components=1
+#RUN ./build_linux.sh
 
-ENV CONMON_GIT_REPO=https://github.com/containers/conmon.git
-ENV CONMON_GIT_VERSION=v2.0.27
 
-ENV CRIO_GIT_REPO=https://github.com/cri-o/cri-o.git
-ENV CRIO_GIT_VERSION=v1.20.2
+# https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.21.0/crictl-v1.21.0-linux-amd64.tar.gz
+# https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.21.0/crictl-v1.21.0-linux-amd64.tar.gz.sha256
 
-ENV CRICTL_CHECKSUM=44d5f550ef3f41f9b53155906e0229ffdbee4b19452b4df540265e29572b899c
-ENV CRICTL_URL="https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.20.0/crictl-v1.20.0-linux-amd64.tar.gz"
+# https://github.com/cri-o/cri-o/archive/refs/tags/v1.20.2.tar.gz
+#FROM build-base as crio
+#ARG CRIO_SRC
+#WORKDIR /tmp/build
+#COPY $CRIO_SRC .
+#RUN tar -xf $(basename $CONMON_SRC) --strip-components=1
+#RUN make
+#RUN make install
 
-# see https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.20.md
-ENV K8S_CHECKSUM=ac936e05aef7bb887a5fb57d50f8c384ee395b5f34c85e5c0effd8709db042359f63247d4a6ae2c0831fe019cd3029465377117e42fff1b00a8e4b7473b88db9
-ENV K8S_URL="https://dl.k8s.io/v1.20.6/kubernetes-server-linux-amd64.tar.gz"
+FROM build-base AS lxc
+ARG LXC_SRC
+RUN apt-get install -qq --no-install-recommends --yes \
+    libapparmor-dev libbtrfs-dev libc6-dev libcap-dev \
+    libdevmapper-dev libseccomp-dev
+WORKDIR /tmp/build
+COPY $LXC_SRC .
+RUN tar -xf $(basename $LXC_SRC) --strip-components=1 --no-same-owner
+RUN ./configure --enable-bash=no --enable-seccomp=yes \
+    --enable-capabilities=yes --enable-apparmor=yes \
+    --enable-tools=no --enable-commands=no \
+    --enable-static=no --enable-examples=no \
+    --enable-doc=no --enable-api-docs=no
+RUN make install
 
-## development
-ENV LXC_GIT_REPO=https://github.com/lxc/lxc.git
-ENV LXC_GIT_VERSION=b9f3cd48ecfed02e4218b55ea1b46273e429a083
 
-ENV LXCRI_GIT_REPO=https://github.com/lxc/lxcri.git
-ENV LXCRI_GIT_VERSION=main
+FROM build-go AS lxcri
+ARG LXCRI_SRC
+COPY --from=lxc /usr/local/ /usr/local/
 
-COPY install.sh /
-RUN /install.sh ${installcmd}
+# go-lxc requires libseccomp
+RUN apt-get update
+RUN apt-get install -qq --no-install-recommends --yes \
+    libapparmor1 libbtrfs0 libcap2 libdevmapper1.02.1 libseccomp2
+
+WORKDIR /tmp/build
+COPY $LXCRI_SRC .
+RUN tar -xf $(basename $LXCRI_SRC) --strip-components=1
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+RUN make install
+
+#FROM ubuntu:latest
+#ARG CNI_PLUGIN_DIR
+#ARG CONMON_BIN
+#ARG CRICTL_BIN
+#
+##COPY $CONMON_BIN /usr/local/bin/conmon
+##COPY --from=cni-plugins /tmp/build/bin/ $CNI_PLUGIN_DIR
+##COPY --from=crio /usr/local/ /usr/local/
+## Modify systemd service file to run with full privileges.
+## This is required for the runtime to set cgroupv2 device controller eBPF.
+##RUN sed -i 's/ExecStart=\//ExecStart=+\//' /usr/local/lib/systemd/system/crio.service
+#COPY --from=lxc /usr/local/ /usr/local/
+#RUN echo /usr/local >> /etc/ld.so.conf.d/local.conf && ldconfig
+#COPY --from=lxcri /usr/local/ /usr/local/
+#
+#RUN apt-get purge -qq --yes $@
+#RUN apt-get autoremove -qq --yes
+#RUN apt-get clean -qq
+#RUN rm -rf /var/lib/apt/lists/*
+
