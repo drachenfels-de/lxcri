@@ -38,6 +38,7 @@ test: build
 	go build ./pkg/internal/lxcri-test
 	go test --failfast --count $(TESTCOUNT) -v ./...
 
+.PHONY: build
 build: $(BINS) $(LIBEXEC_BINS)
 
 lxcri: go.mod $(GO_SRC) Makefile
