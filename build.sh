@@ -2,40 +2,6 @@
 
 # https://github.com/containers/conmon/archive/refs/tags/v2.0.27.tar.gz
 # https://github.com/containers/conmon/releases/download/v2.0.27/conmon.amd64
-#FROM build-base AS conmon
-#ARG CONMON_SRC
-#RUN mkdir /tmp/build
-#WORKDIR /tmp/build
-#COPY $CONMON_SRC .
-#RUN tar -xf $(basename $CONMON_SRC) --strip-components=1
-#RUN make
-
-# https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz
-# https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz.sha256
-#FROM golang:latest as cni-plugins
-#ARG CNI_PLUGINS_SRC
-#RUN mkdir /tmp/build
-#WORKDIR /tmp/build
-#COPY $CNI_PLUGINS_SRC .
-#RUN tar -xf $(basename $CNI_SRC) --strip-components=1
-#RUN ./build_linux.sh
-
-# https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.21.0/crictl-v1.21.0-linux-amd64.tar.gz
-# https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.21.0/crictl-v1.21.0-linux-amd64.tar.gz.sha256
-
-# https://github.com/cri-o/cri-o/archive/refs/tags/v1.20.2.tar.gz
-#FROM build-base as crio
-#ARG CRIO_SRC
-#RUN mkdir /tmp/build
-#WORKDIR /tmp/build
-#COPY $CRIO_SRC .
-#RUN tar -xf $(basename $CONMON_SRC) --strip-components=1
-#RUN make
-#RUN make install
-#!/bin/sh
-
-# https://github.com/containers/conmon/archive/refs/tags/v2.0.27.tar.gz
-# https://github.com/containers/conmon/releases/download/v2.0.27/conmon.amd64
 CONMON="conmon.amd64"
 CONMON_URL="https://github.com/containers/conmon/releases/download/v2.0.27/$CONMON"
 CONMON_SUM="8d4048c4b84ae44c11c2604e5e5a296fbb7ff567a0e3433ce5dfdfd72d2506e1"
@@ -46,6 +12,7 @@ CNI_PLUGINS_URL="https://github.com/containernetworking/plugins/releases/downloa
 # https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz.sha256
 CNI_PLUGINS_SUM="962100bbc4baeaaa5748cdbfce941f756b1531c2eadb290129401498bfac21e7"
 
+# https://github.com/cri-o/cri-o/archive/refs/tags/v1.20.2.tar.gz
 CRIO_VERSION="v1.20.2"
 CRIO_SRC="crio-$CRIO_VERSION.tar.gz"
 CRIO_SRC_URL="https://github.com/cri-o/cri-o/archive/refs/tags/$CRIO_VERSION.tar.gz"
@@ -67,7 +34,6 @@ LXC_SRC_URL="https://linuxcontainers.org/downloads/lxc/$LXC_SRC"
 LXC_SRC_SUM="1fcf0610e9140eceb4be2334eb537bb9c5a213faea77c793ab3c62b86f37e52b"
 
 # NOTE use https://github.com/lxc/lxcri/tarball/main for development ... (strip components)
-LXCRI_SRC_DEV_URL="https://github.com/lxc/lxcri/tarball/main"
 LXCRI_VERSION="v0.12.1"
 LXCRI_SRC="lxcri-${LXCRI_VERSION}.tar.gz"
 LXCRI_SRC_URL="https://github.com/lxc/lxcri/archive/refs/tags/${LXCRI_VERSION}.tar.gz"
@@ -100,9 +66,16 @@ download $CRIO_SRC $CRIO_SRC_URL $CRIO_SRC_SUM
 download $CRICTL $CRICTL_URL $CRICTL_SUM
 download $LXC_SRC $LXC_SRC_URL $LXC_SRC_SUM
 download $GOLANG $GOLANG_URL $GOLANG_SUM
-#download $LXCRI_SRC $LXCRI_SRC_URL $LXCRI_SRC_SUM
-LXCRI_SRC=lxcri-master.tar.gz
-git archive --prefix lxcri-master/ -o $DL/$LXCRI_SRC HEAD
+
+# if DEV environment variable is defined, then build lxcri from
+# a tarball of the latest (local) commit.
+if [ $DEV ]; then
+	LXCRI_SRC=lxcri-master.tar.gz
+	LXCRI_VERSION=$(shell git describe --always --tags --long)
+	git archive --prefix lxcri-master/ -o $DL/$LXCRI_SRC HEAD
+else
+	download $LXCRI_SRC $LXCRI_SRC_URL $LXCRI_SRC_SUM
+fi
 
 BUILD_CMD=${BUILD_CMD:-buildah bud}
 $BUILD_CMD $@ \
@@ -113,17 +86,6 @@ $BUILD_CMD $@ \
 	--build-arg CRICTL=$DL/$CRICTL \
 	--build-arg LXC_SRC=$DL/$LXC_SRC \
 	--build-arg LXCRI_SRC=$DL/$LXCRI_SRC \
-	--build-arg GOLANG=$DL/$GOLANG
-
-add_kubernetes() {
-	local checksum=$K8S_CHECKSUM
-	local url=$K8S_URL
-	local archive=$(basename $K8S_URL)
-
-	cd ${TMPDIR}
-	wget --quiet $url
-	echo "$checksum  $archive" | sha512sum -c
-	tar -x -z -f $archive -C $INSTALL_PREFIX/bin --strip-components=3 \
-		kubernetes/server/bin/kubectl kubernetes/server/bin/kubeadm kubernetes/server/bin/kubelet
-	rm $archive
-}
+	--build-arg LXCRI_VERSION=$LXCRI_VERSION \
+	--build-arg GOLANG=$DL/$GOLANG \
+	--tag github.com/lxc/lxcri:latest
