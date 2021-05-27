@@ -58,6 +58,9 @@ lxcri-hook: go.mod $(GO_SRC) Makefile
 lxcri-hook-builtin: go.mod $(GO_SRC) Makefile
 	go build -o $@ ./cmd/$@
 
+lxcri-test: go.mod $(GO_SRC) Makefile
+	go build -o $@ ./pkg/internal/$@
+
 install: build
 	mkdir -p $(PREFIX)/bin
 	cp -v $(BINS) $(PREFIX)/bin
@@ -66,5 +69,5 @@ install: build
 
 .PHONY: clean
 clean:
-	-rm -f $(BINS) $(LIBEXEC_BINS)
+	-rm -f $(BINS) $(LIBEXEC_BINS) lxcri-test
 
