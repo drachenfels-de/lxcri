@@ -175,9 +175,8 @@ func configureContainer(rt *Runtime, c *Container) error {
 				os.MkdirAll(filepath.Join(c.Spec.Root.Path, "/dev"), 0755)
 				newMounts = append(newMounts,
 					specs.Mount{
-						Destination: "/dev", Source: "tmpfs", Type: "tmpfs",
-						Options: []string{"rw", "nosuid", "relatime", "noexec", "inode64", "nr_inodes=1530650", "size=6122600k", "mode=755"},
-						// rw,nosuid,relatime,size=6122600k,nr_inodes=1530650,mode=755,inode64
+						Destination: m.Destination, Source: "tmpfs", Type: "tmpfs",
+						Options: m.Options,
 					},
 				)
 				rt.Log.Info().Msg("device files are bind mounted")
