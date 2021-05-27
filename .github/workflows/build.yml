@@ -34,6 +34,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # FIXME use latest lts version instead (4.0.9 at the time of writing)
           sudo add-apt-repository ppa:ubuntu-lxc/daily -y
           sudo apt-get install -qq lxc-dev libc6-dev pkg-config make
 
@@ -47,20 +48,24 @@ jobs:
           GO111MODULE=off go get -u honnef.co/go/tools/cmd/staticcheck
           staticcheck ./...
 
-
-      - name: Test unprivileged
-        run: |
-          # keep PATH to use go installed through actions/setup-go@v2
-          # and not the system version (which is currently go 1.15.x)
-          sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subuid"
-          sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subgid"
-          sudo chown -R $(whoami):$(whoami) /sys/fs/cgroup/unified$(cat /proc/self/cgroup  | grep '^0:' | cut -d: -f3)
-          # detect file descriptor leaks
-          ulimit -n 30
-          TESTCOUNT=10 make test
-
       - name: Test privileged
         run: |
           # keep PATH to use go installed through actions/setup-go@v2
           # and not the system version (which is currently go 1.15.x)
-          sudo -E "PATH=$PATH" make test
+          # file descriptor limit must be increased - I don't know why
+          # (maybe lxc cgroup mixed hierarchy related)
+          sudo -E "PATH=$PATH" TESTCOUNT=10 MAX_OPEN_FILES=100 make test-privileged
+
+      - name: Test unprivileged
+        run: |
+          sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subuid"
+          sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subgid"
+          ## enable usage of systemd-run
+          loginctl enable-linger $(whoami)
+          ## wait for runtime XDG_RUNTIME_DIR creation
+          while ! [ -e "/run/user/$(id -u)/bus" ]; do
+            echo "waiting for /run/user/$(id -u)/bus to be created"
+            sleep 0.5
+          done
+          TESTCOUNT=100 MAX_OPEN_FILES=40 make test
+
