@@ -1,7 +1,7 @@
 COMMIT_HASH = $(shell git describe --always --tags --long)
 COMMIT = $(shell git describe --always --tags --long --dirty)
 BINS := lxcri
-LIBEXEC_BINS := lxcri-start lxcri-init lxcri-hook lxcri-hook-builtin
+LIBEXEC_BINS := lxcri-start lxcri-init lxcri-hook lxcri-hook-builtin lxcri-conmon
 # Installation prefix for BINS
 PREFIX ?= /usr/local
 export PREFIX
@@ -73,6 +73,9 @@ lxcri-hook-builtin: go.mod $(GO_SRC) Makefile
 
 lxcri-test: go.mod $(GO_SRC) Makefile
 	go build -o $@ ./pkg/internal/$@
+
+lxcri-conmon: go.mod $(GO_SRC) Makefile
+	go build -o $@ ./cmd/$@
 
 install: build
 	mkdir -p $(PREFIX)/bin
