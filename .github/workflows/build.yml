@@ -60,12 +60,5 @@ jobs:
         run: |
           sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subuid"
           sudo /bin/sh -c "echo '$(whoami):20000:65536' >> /etc/subgid"
-          ## enable usage of systemd-run
-          loginctl enable-linger $(whoami)
-          ## wait for runtime XDG_RUNTIME_DIR creation
-          while ! [ -e "/run/user/$(id -u)/bus" ]; do
-            echo "waiting for /run/user/$(id -u)/bus to be created"
-            sleep 0.5
-          done
           TESTCOUNT=100 MAX_OPEN_FILES=40 make test
 
