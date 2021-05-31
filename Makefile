@@ -23,7 +23,8 @@ TESTCOUNT ?= 1
 LIBEXEC_TESTDIR ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 # reduce open file descriptor limit for testing too detect file descriptor leaks early
 MAX_OPEN_FILES ?= 30
-UID = $(shell id -u)
+export MAX_OPEN_FILES
+export LIBEXEC_TESTDIR
 
 all: fmt test
 
@@ -43,17 +44,7 @@ fmt:
 # NOTE: Running the test target requires a running systemd.
 .PHONY: test
 test: build lxcri-test
-	## wait for XDG_RUNTIME_DIR creation
-	if ! [ -e "/run/user/$(UID)/bus" ]; then \
-		sudo loginctl enable-linger $(USER); \
-		while ! [ -e "/run/user/$(UID)/bus" ] ; do \
-		sleep 0.5; \
-		done; \
-	fi
-	ulimit -n $(MAX_OPEN_FILES) && \
-		LXCRI_LIBEXEC=$(LIBEXEC_TESTDIR) \
-		XDG_RUNTIME_DIR=/run/user/$(shell id -u) \
-		systemd-run --user --scope go test --failfast --count $(TESTCOUNT) -v ./...
+	./test.sh --failfast --count $(TESTCOUNT) ./...
 
 test-privileged: build lxcri-test
 	ulimit -n $(MAX_OPEN_FILES) && \
