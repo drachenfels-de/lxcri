@@ -469,7 +469,8 @@ func doCreateInternal(ctx context.Context, cfg *lxcri.ContainerConfig, pidFile s
 	defer clxc.releaseContainer(c)
 
 	if pidFile != "" {
-		err := createPidFile(pidFile, c.Pid)
+		//err := createPidFile(pidFile, c.Pid)
+		err := createPidFile(pidFile, c.LinuxContainer.InitPid())
 		if err != nil {
 			return err
 		}

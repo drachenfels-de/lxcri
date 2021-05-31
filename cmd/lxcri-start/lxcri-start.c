@@ -101,11 +101,7 @@ int main(int argc, char **argv)
 
 	/* Do not daemonize - this would null the inherited stdio. */
 	c->daemonize = false;
-
-	if (!c->start(c, ENABLE_LXCINIT, NULL))
-		ERROR(
-		    "monitor process pid=%d failed (container error_num:%d)\n",
-		    getpid(), c->error_num);
+	c->start(c, ENABLE_LXCINIT, NULL);
 
 	/* Try to die with the same signal the task did. */
 	/* FIXME error_num is zero if init was killed with SIGHUP */
