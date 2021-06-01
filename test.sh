@@ -13,8 +13,9 @@ if [ $UID != 0 ]; then
 	fi
 fi
 
-export LXCRI_LIBEXEC=${LIBEXEC_TESTDIR:-$(pwd)}
-echo "Using LXCRI_LIBEXEC='$LXCRI_LIBEXEC'"
+cp lxcri-test /tmp
+
+export LXCRI_LIBEXEC=/usr/local/libexec/lxcri
 
 # must set the XDG_RUNTIME_DIR if user was switched with sudo|su
 export XDG_RUNTIME_DIR=/run/user/$UID

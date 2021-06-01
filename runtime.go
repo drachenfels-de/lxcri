@@ -157,7 +157,7 @@ func (rt *Runtime) Init() error {
 	}
 
 	rt.Log.Debug().Msgf("Using runtime root %s", rt.Root)
-	if err := os.MkdirAll(rt.Root, 0750); err != nil {
+	if err := os.MkdirAll(rt.Root, 0711); err != nil {
 		return errorf("failed to create rootfs %s: %w", rt.Root, err)
 	}
 
@@ -573,13 +573,11 @@ var DefaultRuntime = Runtime{
 func NewRuntime(user bool) *Runtime {
 	rt := DefaultRuntime
 	if user {
-		// TODO use XDG_RUNTIME_DIR instead ?
-		if home, ok := os.LookupEnv("HOME"); ok && home != "" {
-			rt.Root = filepath.Join(home, ".cache/lxcri/run")
-			log := filepath.Join(home, ".local/lxcri/lxcri.log")
-			rt.LogFile = log
-			rt.ContainerLogFile = log
-		}
+		base := fmt.Sprintf("/var/tmp/lxcri/user/%d", os.Getuid())
+		rt.Root = filepath.Join(base, "run")
+		log := filepath.Join(base, "lxcri.log")
+		rt.LogFile = log
+		rt.ContainerLogFile = log
 	}
 	return &rt
 }

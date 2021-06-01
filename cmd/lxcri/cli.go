@@ -21,14 +21,14 @@ var (
 	version = "undefined"
 )
 
-var clxc app
-
 type app struct {
 	*lxcri.Runtime
 
 	command     string
 	containerID string
 }
+
+var clxc app
 
 func (app *app) loadContainer(containerID string) (*lxcri.Container, error) {
 	c, err := clxc.Load(containerID)
@@ -50,6 +50,8 @@ func (app *app) releaseContainer(c *lxcri.Container) {
 }
 
 func main() {
+	clxc.Runtime = lxcri.NewRuntime(os.Getuid() != 0)
+
 	app := cli.NewApp()
 	app.Name = "lxcri"
 	app.Usage = "lxcri is a OCI compliant runtime wrapper for lxc"
@@ -60,18 +62,16 @@ func main() {
 	// the cli.ExitCoder interface. E.g an unwrapped error from os.Exec.
 	app.ExitErrHandler = func(context *cli.Context, err error) {}
 	app.Commands = []*cli.Command{
-		&stateCmd,
-		&createCmd,
-		&startCmd,
-		&killCmd,
-		&deleteCmd,
-		&execCmd,
-		&inspectCmd,
-		&listCmd,
-		&configCmd,
+		stateCmd(),
+		createCmd(),
+		startCmd(),
+		killCmd(),
+		deleteCmd(),
+		execCmd(),
+		inspectCmd(),
+		listCmd(),
+		configCmd(),
 	}
-
-	clxc.Runtime = lxcri.NewRuntime(os.Getuid() != 0)
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
@@ -268,37 +268,39 @@ func main() {
 	}
 }
 
-var createCmd = cli.Command{
-	Name:      "create",
-	Usage:     "create a container from a bundle directory",
-	ArgsUsage: "<containerID>",
-	Action:    doCreate,
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "bundle",
-			Usage: "set bundle directory",
-			Value: ".",
+func createCmd() *cli.Command {
+	return &cli.Command{
+		Name:      "create",
+		Usage:     "create a container from a bundle directory",
+		ArgsUsage: "<containerID>",
+		Action:    doCreate,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "bundle",
+				Usage: "set bundle directory",
+				Value: ".",
+			},
+			&cli.StringFlag{
+				Name:  "console-socket",
+				Usage: "send container pty master fd to this socket path",
+			},
+			&cli.StringFlag{
+				Name:  "pid-file",
+				Usage: "path to write container PID",
+			},
+			&cli.BoolFlag{
+				Name:  "no-new-keyring",
+				Usage: "unused -required by buildah",
+			},
+			&cli.UintFlag{
+				Name:        "timeout",
+				Usage:       "maximum duration in seconds for create to complete",
+				EnvVars:     []string{"LXCRI_CREATE_TIMEOUT"},
+				Value:       clxc.Timeouts.CreateTimeout,
+				Destination: &clxc.Timeouts.CreateTimeout,
+			},
 		},
-		&cli.StringFlag{
-			Name:  "console-socket",
-			Usage: "send container pty master fd to this socket path",
-		},
-		&cli.StringFlag{
-			Name:  "pid-file",
-			Usage: "path to write container PID",
-		},
-		&cli.BoolFlag{
-			Name:  "no-new-keyring",
-			Usage: "unused -required by buildah",
-		},
-		&cli.UintFlag{
-			Name:        "timeout",
-			Usage:       "maximum duration in seconds for create to complete",
-			EnvVars:     []string{"LXCRI_CREATE_TIMEOUT"},
-			Value:       clxc.Timeouts.CreateTimeout,
-			Destination: &clxc.Timeouts.CreateTimeout,
-		},
-	},
+	}
 }
 
 func doCreate(ctxcli *cli.Context) error {
@@ -354,23 +356,25 @@ func doCreateInternal(ctx context.Context, cfg *lxcri.ContainerConfig, pidFile s
 	return nil
 }
 
-var startCmd = cli.Command{
-	Name:   "start",
-	Usage:  "starts a container",
-	Action: doStart,
-	ArgsUsage: `[containerID]
+func startCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "start",
+		Usage:  "starts a container",
+		Action: doStart,
+		ArgsUsage: `[containerID]
 
 starts <containerID>
 `,
-	Flags: []cli.Flag{
-		&cli.UintFlag{
-			Name:        "timeout",
-			Usage:       "maximum duration in seconds for start to complete",
-			EnvVars:     []string{"LXCRI_START_TIMEOUT"},
-			Value:       clxc.Timeouts.StartTimeout,
-			Destination: &clxc.Timeouts.StartTimeout,
+		Flags: []cli.Flag{
+			&cli.UintFlag{
+				Name:        "timeout",
+				Usage:       "maximum duration in seconds for start to complete",
+				EnvVars:     []string{"LXCRI_START_TIMEOUT"},
+				Value:       clxc.Timeouts.StartTimeout,
+				Destination: &clxc.Timeouts.StartTimeout,
+			},
 		},
-	},
+	}
 }
 
 func doStart(ctxcli *cli.Context) error {
@@ -401,15 +405,17 @@ func doStartInternal(ctx context.Context) error {
 	return clxc.Start(ctx, c)
 }
 
-var stateCmd = cli.Command{
-	Name:   "state",
-	Usage:  "returns state of a container",
-	Action: doState,
-	ArgsUsage: `[containerID]
+func stateCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "state",
+		Usage:  "returns state of a container",
+		Action: doState,
+		ArgsUsage: `[containerID]
 
 <containerID> is the ID of the container you want to know about.
 `,
-	Flags: []cli.Flag{},
+		Flags: []cli.Flag{},
+	}
 }
 
 func doState(unused *cli.Context) error {
@@ -431,24 +437,26 @@ func doState(unused *cli.Context) error {
 	return err
 }
 
-var killCmd = cli.Command{
-	Name:   "kill",
-	Usage:  "sends a signal to a container",
-	Action: doKill,
-	ArgsUsage: `[containerID] [signal]
+func killCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "kill",
+		Usage:  "sends a signal to a container",
+		Action: doKill,
+		ArgsUsage: `[containerID] [signal]
 
 <containerID> is the ID of the container to send a signal to
 [signal] signal name or numerical value (e.g [9|kill|KILL|sigkill|SIGKILL])
 `,
-	Flags: []cli.Flag{
-		&cli.UintFlag{
-			Name:        "timeout",
-			Usage:       "timeout for killing all processes in container cgroup",
-			EnvVars:     []string{"LXCRI_KILL_TIMEOUT"},
-			Value:       clxc.Timeouts.KillTimeout,
-			Destination: &clxc.Timeouts.KillTimeout,
+		Flags: []cli.Flag{
+			&cli.UintFlag{
+				Name:        "timeout",
+				Usage:       "timeout for killing all processes in container cgroup",
+				EnvVars:     []string{"LXCRI_KILL_TIMEOUT"},
+				Value:       clxc.Timeouts.KillTimeout,
+				Destination: &clxc.Timeouts.KillTimeout,
+			},
 		},
-	},
+	}
 }
 
 func doKill(ctxcli *cli.Context) error {
@@ -471,27 +479,29 @@ func doKill(ctxcli *cli.Context) error {
 	return clxc.Kill(ctx, c, signum)
 }
 
-var deleteCmd = cli.Command{
-	Name:   "delete",
-	Usage:  "deletes a container",
-	Action: doDelete,
-	ArgsUsage: `[containerID]
+func deleteCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "delete",
+		Usage:  "deletes a container",
+		Action: doDelete,
+		ArgsUsage: `[containerID]
 
 <containerID> is the ID of the container to delete
 `,
-	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:  "force",
-			Usage: "force deletion",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "force",
+				Usage: "force deletion",
+			},
+			&cli.UintFlag{
+				Name:        "timeout",
+				Usage:       "maximum duration in seconds for delete to complete",
+				EnvVars:     []string{"LXCRI_DELETE_TIMEOUT"},
+				Value:       clxc.Timeouts.DeleteTimeout,
+				Destination: &clxc.Timeouts.DeleteTimeout,
+			},
 		},
-		&cli.UintFlag{
-			Name:        "timeout",
-			Usage:       "maximum duration in seconds for delete to complete",
-			EnvVars:     []string{"LXCRI_DELETE_TIMEOUT"},
-			Value:       clxc.Timeouts.DeleteTimeout,
-			Destination: &clxc.Timeouts.DeleteTimeout,
-		},
-	},
+	}
 }
 
 func doDelete(ctxcli *cli.Context) error {
@@ -508,62 +518,64 @@ func doDelete(ctxcli *cli.Context) error {
 	return err
 }
 
-var execCmd = cli.Command{
-	Name:      "exec",
-	Usage:     "execute a new process in a running container",
-	ArgsUsage: "<containerID> [COMMAND] [args...]",
-	Action:    doExec,
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:    "process",
-			Aliases: []string{"p"},
-			Usage:   "path to process json - cmd and args are ignored if set",
-			Value:   "",
+func execCmd() *cli.Command {
+	return &cli.Command{
+		Name:      "exec",
+		Usage:     "execute a new process in a running container",
+		ArgsUsage: "<containerID> [COMMAND] [args...]",
+		Action:    doExec,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "process",
+				Aliases: []string{"p"},
+				Usage:   "path to process json - cmd and args are ignored if set",
+				Value:   "",
+			},
+			&cli.StringFlag{
+				Name:  "pid-file",
+				Usage: "file to write the process id to",
+				Value: "",
+			},
+			&cli.BoolFlag{
+				Name:    "detach",
+				Aliases: []string{"d"},
+				Usage:   "detach from the executed process",
+			},
+			&cli.BoolFlag{
+				Name:  "cgroup",
+				Usage: "run in container cgroup namespace",
+			},
+			&cli.BoolFlag{
+				Name:  "ipc",
+				Usage: "run in container IPC namespace",
+			},
+			&cli.BoolFlag{
+				Name:  "mnt",
+				Usage: "run in container mount namespace",
+			},
+			&cli.BoolFlag{
+				Name:  "net",
+				Usage: "run in container network namespace",
+			},
+			&cli.BoolFlag{
+				Name:  "pid",
+				Usage: "run in container PID namespace",
+			},
+			//&cli.BoolFlag{
+			//	Name:  "time",
+			//	Usage: "run in container time namespace",
+			//	Value: true,
+			//},
+			&cli.BoolFlag{
+				Name:  "user",
+				Usage: "run in container user namespace",
+			},
+			&cli.BoolFlag{
+				Name:  "uts",
+				Usage: "run in container UTS namespace",
+			},
 		},
-		&cli.StringFlag{
-			Name:  "pid-file",
-			Usage: "file to write the process id to",
-			Value: "",
-		},
-		&cli.BoolFlag{
-			Name:    "detach",
-			Aliases: []string{"d"},
-			Usage:   "detach from the executed process",
-		},
-		&cli.BoolFlag{
-			Name:  "cgroup",
-			Usage: "run in container cgroup namespace",
-		},
-		&cli.BoolFlag{
-			Name:  "ipc",
-			Usage: "run in container IPC namespace",
-		},
-		&cli.BoolFlag{
-			Name:  "mnt",
-			Usage: "run in container mount namespace",
-		},
-		&cli.BoolFlag{
-			Name:  "net",
-			Usage: "run in container network namespace",
-		},
-		&cli.BoolFlag{
-			Name:  "pid",
-			Usage: "run in container PID namespace",
-		},
-		//&cli.BoolFlag{
-		//	Name:  "time",
-		//	Usage: "run in container time namespace",
-		//	Value: true,
-		//},
-		&cli.BoolFlag{
-			Name:  "user",
-			Usage: "run in container user namespace",
-		},
-		&cli.BoolFlag{
-			Name:  "uts",
-			Usage: "run in container UTS namespace",
-		},
-	},
+	}
 }
 
 type execError int
@@ -677,20 +689,22 @@ func doExec(ctxcli *cli.Context) error {
 	return nil
 }
 
-var inspectCmd = cli.Command{
-	Name:   "inspect",
-	Usage:  "display the status of one or more containers",
-	Action: doInspect,
-	ArgsUsage: `containerID [containerID...]
+func inspectCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "inspect",
+		Usage:  "display the status of one or more containers",
+		Action: doInspect,
+		ArgsUsage: `containerID [containerID...]
 
 <containerID> [containerID...] list of IDs for container to inspect
 `,
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "template",
-			Usage: "Use this go template to format the output.",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "template",
+				Usage: "Use this go template to format the output.",
+			},
 		},
-	},
+	}
 }
 
 func doInspect(ctxcli *cli.Context) (err error) {
@@ -711,17 +725,19 @@ func doInspect(ctxcli *cli.Context) (err error) {
 	return nil
 }
 
-var listCmd = cli.Command{
-	Name:   "list",
-	Usage:  "list available containers",
-	Action: doList,
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "template",
-			Usage: "Use this go template to format the output.",
-			// e.g `{{ printf "%s %s\n" .Container.ContainerID .State.ContainerState }}`,
+func listCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "list",
+		Usage:  "list available containers",
+		Action: doList,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "template",
+				Usage: "Use this go template to format the output.",
+				// e.g `{{ printf "%s %s\n" .Container.ContainerID .State.ContainerState }}`,
+			},
 		},
-	},
+	}
 }
 
 func doList(ctxcli *cli.Context) (err error) {
@@ -789,28 +805,30 @@ func inspectContainer(id string, t *template.Template) error {
 	return err
 }
 
-var configCmd = cli.Command{
-	Name:   "config",
-	Usage:  "Output a config file for lxcri. Global options modify the output.",
-	Action: doConfig,
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "out",
-			Usage: "write config to file",
+func configCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "config",
+		Usage:  "Output a config file for lxcri. Global options modify the output.",
+		Action: doConfig,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "out",
+				Usage: "write config to file",
+			},
+			&cli.BoolFlag{
+				Name:  "default",
+				Usage: "use the builtin default configuration",
+			},
+			&cli.BoolFlag{
+				Name:  "update-current",
+				Usage: "write to the current config file (--out is ignored)",
+			},
+			&cli.BoolFlag{
+				Name:  "quiet",
+				Usage: "do not print config to stdout",
+			},
 		},
-		&cli.BoolFlag{
-			Name:  "default",
-			Usage: "use the builtin default configuration",
-		},
-		&cli.BoolFlag{
-			Name:  "update-current",
-			Usage: "write to the current config file (--out is ignored)",
-		},
-		&cli.BoolFlag{
-			Name:  "quiet",
-			Usage: "do not print config to stdout",
-		},
-	},
+	}
 }
 
 // NOTE lxcri config  > /etc/lxcri/lxcri.yaml does not work

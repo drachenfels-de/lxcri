@@ -15,16 +15,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func mkdirTemp() (string, error) {
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	// /tmp has permissions 1777
-	// it should never be used as runtime or rootfs parent
-	return os.MkdirTemp(homedir, "lxcri-test")
-}
-
 func removeAll(t *testing.T, filename string) {
 	err := os.RemoveAll(filename)
 	require.NoError(t, err)
@@ -48,10 +38,13 @@ func newRuntime(t *testing.T) *Runtime {
 // deleted, otherwise the go test runner will hang because it waits
 // for the container process to exit.
 func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
-	rootfs, err := mkdirTemp()
+	rootfs, err := os.MkdirTemp("", "lxcri-test")
+	require.NoError(t, err)
+	err = unix.Chmod(rootfs, 0711)
 	require.NoError(t, err)
 	t.Logf("container rootfs: %s", rootfs)
 
+	cmd = filepath.Join("/tmp", cmd)
 	cmdAbs, err := filepath.Abs(cmd)
 	require.NoError(t, err)
 	cmdDest := "/" + filepath.Base(cmdAbs)
@@ -67,6 +60,7 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 	}
 	cfg.Spec.Linux.CgroupsPath = id + ".slice" // use /proc/self/cgroup"
 
+	//
 	cfg.Spec.Mounts = append(cfg.Spec.Mounts,
 		specki.BindMount(cmdAbs, cmdDest),
 	)
