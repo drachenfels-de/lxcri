@@ -345,7 +345,7 @@ func (rt *Runtime) runStartCmd(ctx context.Context, c *Container) (err error) {
 	// #nosec
 	cmd := exec.Command(rt.libexec(ExecStart), c.LinuxContainer.Name(), rt.Root, c.ConfigFilePath())
 	cmd.Env = rt.env // environment variables required for liblxc
-	cmd.Dir = c.RuntimePath()
+	cmd.Dir = c.Spec.Root.Path
 
 	if c.ConsoleSocket == "" && !c.Spec.Process.Terminal {
 		// Inherit stdio from calling process (conmon).
