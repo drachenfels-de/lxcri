@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/lxc/lxcri"
-	"github.com/lxc/lxcri/pkg/log"
 	"github.com/lxc/lxcri/pkg/specki"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/urfave/cli/v2"
@@ -19,97 +18,16 @@ import (
 )
 
 var (
-	defaultConfigFile     = "/etc/lxcri/lxcri.yaml"
-	defaultUserConfigFile = ".config/lxcri.yaml"
-
-	version           = "undefined"
-	defaultLibexecDir = "/usr/libexec/lxcri"
+	version = "undefined"
 )
 
+var clxc app
+
 type app struct {
-	lxcri.Runtime
+	*lxcri.Runtime
 
-	LogConfig logConfig
-	Timeouts  timeouts
-
-	configFile  string
 	command     string
 	containerID string
-}
-
-type logConfig struct {
-	file       *os.File
-	logConsole bool
-
-	LogFile   string `json:",omitempty"`
-	LogLevel  string `json:",omitempty"`
-	Timestamp string `json:",omitempty"`
-
-	ContainerLogLevel string `json:",omitempty"`
-	ContainerLogFile  string `json:",omitempty"`
-}
-
-type timeouts struct {
-	CreateTimeout uint `json:",omitempty"`
-	StartTimeout  uint `json:",omitempty"`
-	KillTimeout   uint `json:",omitempty"`
-	DeleteTimeout uint `json:",omitempty"`
-}
-
-// user default
-// lxcri --log-file ~/.cache/lxcri.log --container-log-file ~/.cache/lxcri.log --root ~/.cache/lxcri/run config --update-current
-var defaultApp = app{
-	Runtime: lxcri.Runtime{
-		Root:          "/run/lxcri",
-		MonitorCgroup: "lxcri-monitor.slice",
-		PayloadCgroup: "lxcri.slice",
-		LibexecDir:    defaultLibexecDir,
-		Features: lxcri.RuntimeFeatures{
-			Apparmor:      true,
-			Capabilities:  true,
-			CgroupDevices: true,
-			Seccomp:       true,
-		},
-	},
-	LogConfig: logConfig{
-		LogFile:           "/var/log/lxcri/lxcri.log",
-		LogLevel:          "info",
-		ContainerLogFile:  "/var/log/lxcri/lxcri.log",
-		ContainerLogLevel: "warn",
-	},
-
-	Timeouts: timeouts{
-		CreateTimeout: 60,
-		StartTimeout:  30,
-		KillTimeout:   10,
-		DeleteTimeout: 10,
-	},
-}
-
-var clxc = defaultApp
-
-func (app *app) configureLogger() error {
-	level, err := log.ParseLevel(app.LogConfig.LogLevel)
-	if err != nil {
-		return fmt.Errorf("failed to parse log level: %w", err)
-	}
-
-	if app.LogConfig.logConsole {
-		app.Runtime.Log = log.ConsoleLogger(true, level)
-		app.LogConfig.ContainerLogFile = "/dev/stdout"
-	} else {
-		// TODO use console logger if filepath is /dev/stdout or /dev/stderr ?
-		l, err := log.OpenFile(app.LogConfig.LogFile, 0600)
-		if err != nil {
-			return fmt.Errorf("failed to open log file: %w", err)
-		}
-		app.LogConfig.file = l
-		logCtx := log.NewLogger(app.LogConfig.file, level)
-
-		app.Runtime.Log = logCtx.Str("cmd", app.command).Str("cid", app.containerID).Logger()
-	}
-
-	return nil
 }
 
 func (app *app) loadContainer(containerID string) (*lxcri.Container, error) {
@@ -129,45 +47,6 @@ func (app *app) releaseContainer(c *lxcri.Container) {
 	if err := c.Release(); err != nil {
 		app.Runtime.Log.Error().Msgf("failed to release container: %s", err)
 	}
-}
-
-func (app *app) releaseLog() error {
-	if clxc.LogConfig.file != nil {
-		return clxc.LogConfig.file.Close()
-	}
-	return nil
-}
-
-func configFilePath() string {
-	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok && val != "" {
-		return val
-	}
-
-	if val, ok := os.LookupEnv("HOME"); ok && val != "" {
-		cfgFile := filepath.Join(val, defaultUserConfigFile)
-		if _, err := os.Stat(cfgFile); err == nil {
-			return cfgFile
-		}
-	}
-
-	return defaultConfigFile
-}
-
-func loadConfig() error {
-	clxc.configFile = configFilePath()
-
-	if clxc.configFile == "" {
-		return nil
-	}
-
-	data, err := os.ReadFile(clxc.configFile)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return yaml.Unmarshal(data, &clxc)
 }
 
 func main() {
@@ -192,10 +71,7 @@ func main() {
 		&configCmd,
 	}
 
-	err := loadConfig()
-	if err != nil {
-		panic(fmt.Errorf("failed to read config file: %w", err))
-	}
+	clxc.Runtime = lxcri.NewRuntime(os.Getuid() != 0)
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
@@ -236,7 +112,7 @@ func main() {
 		&cli.BoolFlag{
 			Name:        "log-console",
 			Usage:       "write log output to stdout. --log-file and --container-log-file options are ignored",
-			Destination: &clxc.LogConfig.logConsole,
+			Destination: &clxc.LogConfig.LogConsole,
 		},
 		&cli.StringFlag{
 			Name:    "root",
@@ -351,9 +227,14 @@ func main() {
 		}
 		clxc.containerID = containerID
 
-		if err := clxc.configureLogger(); err != nil {
-			return fmt.Errorf("failed to configure logger: %w", err)
+		clxc.LogConfig.LogContext = map[string]string{
+			"cmd": clxc.command,
+			"cid": clxc.containerID,
 		}
+		if err := clxc.Init(); err != nil {
+			return err
+		}
+
 		return nil
 	}
 
@@ -362,13 +243,13 @@ func main() {
 		cmd.OnUsageError = errUsage
 	}
 
-	err = app.Run(os.Args)
+	err := app.Run(os.Args)
 
 	cmdDuration := time.Since(startTime)
 
 	if err != nil {
 		clxc.Log.Error().Err(err).Dur("duration", cmdDuration).Msg("cmd failed")
-		clxc.releaseLog()
+		clxc.Release()
 		// write diagnostics message to stderr for crio/kubelet
 		println(err.Error())
 
@@ -381,7 +262,7 @@ func main() {
 	}
 
 	clxc.Log.Debug().Dur("duration", cmdDuration).Msg("cmd completed")
-	if err := clxc.releaseLog(); err != nil {
+	if err := clxc.Release(); err != nil {
 		println(err.Error())
 		os.Exit(1)
 	}
@@ -421,10 +302,6 @@ var createCmd = cli.Command{
 }
 
 func doCreate(ctxcli *cli.Context) error {
-	if err := clxc.Init(); err != nil {
-		return err
-	}
-
 	cfg := lxcri.ContainerConfig{
 		ContainerID:   clxc.containerID,
 		BundlePath:    ctxcli.String("bundle"),
@@ -941,7 +818,7 @@ func doConfig(ctxcli *cli.Context) error {
 	// generate yaml
 	c := clxc
 	if ctxcli.Bool("default") {
-		c = defaultApp
+		c.Runtime = lxcri.NewRuntime(os.Getuid() != 0)
 	}
 	data, err := yaml.Marshal(c)
 	if err != nil {
@@ -953,7 +830,7 @@ func doConfig(ctxcli *cli.Context) error {
 
 	out := ctxcli.String("out")
 	if ctxcli.Bool("update-current") {
-		out = clxc.configFile
+		out = clxc.ConfigPath
 	}
 	if out != "" {
 		fmt.Printf("Writing to file %s\n", out)

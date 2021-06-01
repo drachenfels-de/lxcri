@@ -13,16 +13,19 @@ import (
 	"github.com/creack/pty"
 	"github.com/drachenfels-de/gocapability/capability"
 	"github.com/lxc/go-lxc"
+	"github.com/lxc/lxcri/pkg/log"
 	"github.com/lxc/lxcri/pkg/specki"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/rs/zerolog"
 	"golang.org/x/sys/unix"
+	"sigs.k8s.io/yaml"
 )
 
 const (
 	// BundleConfigFile is the name of the OCI container bundle config file.
 	// The content is the JSON encoded specs.Spec.
-	BundleConfigFile = "config.json"
+	BundleConfigFile  = "config.json"
+	DefaultLibexecDir = "/usr/libexec/lxcri"
 )
 
 // Required runtime executables loaded from Runtime.LibexecDir
@@ -92,6 +95,32 @@ type Runtime struct {
 	// The user namespace must be dropped from the namespace list.
 	// Runtime user detection using os.Getuid() or os.Geteuid() will not work.
 	usernsConfigured bool
+
+	LogConfig
+	Timeouts
+
+	ConfigPath string `json:"-"`
+}
+
+type LogConfig struct {
+	file *os.File
+
+	LogFile   string `json:",omitempty"`
+	LogLevel  string `json:",omitempty"`
+	Timestamp string `json:",omitempty"`
+
+	LogConsole bool              `json:"-"`
+	LogContext map[string]string `json:"-"`
+
+	ContainerLogLevel string `json:",omitempty"`
+	ContainerLogFile  string `json:",omitempty"`
+}
+
+type Timeouts struct {
+	CreateTimeout uint `json:",omitempty"`
+	StartTimeout  uint `json:",omitempty"`
+	KillTimeout   uint `json:",omitempty"`
+	DeleteTimeout uint `json:",omitempty"`
 }
 
 func (rt *Runtime) libexec(name string) string {
@@ -123,6 +152,14 @@ func (rt *Runtime) isPrivileged() bool {
 // Unsupported runtime features are disabled and a warning message is logged.
 // Init must be called once for a runtime instance before calling any other method.
 func (rt *Runtime) Init() error {
+	if err := rt.configureLogger(); err != nil {
+		return errorf("failed to configure logger: %w", err)
+	}
+
+	rt.Log.Debug().Msgf("Using runtime root %s", rt.Root)
+	if err := os.MkdirAll(rt.Root, 0750); err != nil {
+		return errorf("failed to create rootfs %s: %w", rt.Root, err)
+	}
 
 	_, rt.usernsConfigured = os.LookupEnv("_CONTAINERS_USERNS_CONFIGURED")
 
@@ -163,6 +200,36 @@ func (rt *Runtime) Init() error {
 	rt.Hooks.CreateContainer = []specs.Hook{
 		specs.Hook{Path: rt.libexec(ExecHookBuiltin)},
 	}
+	return nil
+}
+
+func (rt *Runtime) configureLogger() error {
+	level, err := zerolog.ParseLevel(rt.LogConfig.LogLevel)
+	if err != nil {
+		return fmt.Errorf("failed to parse log level: %w", err)
+	}
+
+	var logCtx zerolog.Context
+	if rt.LogConfig.LogConsole {
+		// TODO use console logger if filepath is /dev/stdout or /dev/stderr ?
+		logCtx = log.ConsoleLogger(true, level)
+		rt.LogConfig.ContainerLogFile = "/dev/stdout"
+	} else {
+		if err := os.MkdirAll(filepath.Dir(rt.LogConfig.LogFile), 0750); err != nil {
+			return err
+		}
+		l, err := log.OpenFile(rt.LogConfig.LogFile, 0600)
+		if err != nil {
+			return fmt.Errorf("failed to open log file %q: %w", rt.LogConfig.LogFile, err)
+		}
+		rt.LogConfig.file = l
+		logCtx = log.NewLogger(rt.LogConfig.file, level)
+	}
+	for k, v := range rt.LogConfig.LogContext {
+		logCtx = logCtx.Str(k, v)
+	}
+	rt.Log = logCtx.Logger()
+
 	return nil
 }
 
@@ -475,4 +542,99 @@ func (rt *Runtime) List() ([]string, error) {
 		}
 	}
 	return visible, nil
+}
+
+var DefaultRuntime = Runtime{
+	Root:          "/run/lxcri",
+	MonitorCgroup: "lxcri-monitor.slice",
+	PayloadCgroup: "lxcri.slice",
+	LibexecDir:    DefaultLibexecDir,
+	Features: RuntimeFeatures{
+		Apparmor:      true,
+		Capabilities:  true,
+		CgroupDevices: true,
+		Seccomp:       true,
+	},
+	LogConfig: LogConfig{
+		LogFile:           "/var/log/lxcri/lxcri.log",
+		LogLevel:          "info",
+		ContainerLogFile:  "/var/log/lxcri/lxcri.log",
+		ContainerLogLevel: "warn",
+	},
+
+	Timeouts: Timeouts{
+		CreateTimeout: 60,
+		StartTimeout:  30,
+		KillTimeout:   10,
+		DeleteTimeout: 10,
+	},
+}
+
+func NewRuntime(user bool) *Runtime {
+	rt := DefaultRuntime
+	if user {
+		// TODO use XDG_RUNTIME_DIR instead ?
+		if home, ok := os.LookupEnv("HOME"); ok && home != "" {
+			rt.Root = filepath.Join(home, ".cache/lxcri/run")
+			log := filepath.Join(home, ".local/lxcri/lxcri.log")
+			rt.LogFile = log
+			rt.ContainerLogFile = log
+		}
+	}
+	return &rt
+}
+
+func (rt *Runtime) Release() error {
+	if rt.LogConfig.file != nil {
+		return rt.LogConfig.file.Close()
+	}
+	return nil
+}
+
+func (rt *Runtime) LoadConfig(ConfigPath string) error {
+	rt.ConfigPath = ConfigPath
+	if rt.ConfigPath == "" {
+		rt.ConfigPath = defaultConfigPath()
+	}
+	if err := rt.loadConfig(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// defaultConfigPath returns the path to the runtime config file.
+// The path is evaluated in the following order:
+//
+// * The value of the LXCRI_CONFIG environment variable, if set.
+// * The users config file ~/.config/lxcri.yaml, if exists.
+// * The system config file "/etc/lxcri/lxcri.yaml"
+
+func defaultConfigPath() string {
+	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok && val != "" {
+		return val
+	}
+
+	if val, ok := os.LookupEnv("HOME"); ok && val != "" {
+		cfgFile := filepath.Join(val, ".config/lxcri.yaml")
+		if _, err := os.Stat(cfgFile); err == nil {
+			return cfgFile
+		}
+	}
+
+	return "/etc/lxcri/lxcri.yaml"
+}
+
+func (rt *Runtime) loadConfig() error {
+	if rt.ConfigPath == "" {
+		return nil
+	}
+
+	data, err := os.ReadFile(rt.ConfigPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(data, rt)
 }
