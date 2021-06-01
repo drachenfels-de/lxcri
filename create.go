@@ -9,6 +9,7 @@ import (
 
 	"github.com/lxc/lxcri/pkg/specki"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"golang.org/x/sys/unix"
 )
 
 // Create creates a single container instance from the given ContainerConfig.
@@ -272,6 +273,13 @@ func configureRootfs(rt *Runtime, c *Container) error {
 	if !filepath.IsAbs(rootfs) {
 		rootfs = filepath.Join(c.BundlePath, rootfs)
 	}
+
+	if os.Getuid() != 0 {
+		if err := unix.Chmod(rootfs, 0777); err != nil {
+			return err
+		}
+	}
+
 	if err := c.setConfigItem("lxc.rootfs.path", rootfs); err != nil {
 		return err
 	}

@@ -51,6 +51,7 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 
 	spec := specki.NewSpec(rootfs, cmdDest)
 	id := filepath.Base(rootfs)
+
 	clog := log.ConsoleLogger(true, log.DebugLevel).Str("test", t.Name()).Str("cid", id).Logger()
 	cfg := ContainerConfig{
 		ContainerID: id, Spec: spec,
@@ -134,12 +135,6 @@ func TestNonEmptyCgroup(t *testing.T) {
 	defer removeAll(t, cfg.Spec.Root.Path)
 
 	if os.Getuid() != 0 {
-		err := unix.Chmod(cfg.Spec.Root.Path, 0777)
-		require.NoError(t, err)
-
-		err = unix.Chmod(rt.Root, 0755)
-		require.NoError(t, err)
-
 		cfg.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
 			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
