@@ -15,33 +15,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var logLevel = "debug"
-var libexecDir = "/usr/local/libexec/lxcri"
-var tmpRoot = "."
-
-func init() {
-	// NOTE keep environment variables in sync with `lxcri` cli
-	if val, ok := os.LookupEnv("LXCRI_LOG_LEVEL"); ok {
-		logLevel = val
-	}
-	if val, ok := os.LookupEnv("LXCRI_LIBEXEC"); ok {
-		libexecDir = val
-	}
-	if val, ok := os.LookupEnv("LXCRI_ROOT"); ok {
-		tmpRoot = val
-	} else {
-		homedir, err := os.UserHomeDir()
-		if err != nil {
-			panic(err)
-		}
-		tmpRoot = homedir
-	}
-}
-
 func mkdirTemp() (string, error) {
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
 	// /tmp has permissions 1777
 	// it should never be used as runtime or rootfs parent
-	return os.MkdirTemp(tmpRoot, "lxcri-test")
+	return os.MkdirTemp(homedir, "lxcri-test")
 }
 
 func removeAll(t *testing.T, filename string) {
@@ -50,21 +31,13 @@ func removeAll(t *testing.T, filename string) {
 }
 
 func newRuntime(t *testing.T) *Runtime {
-	runtimeRoot, err := mkdirTemp()
-	require.NoError(t, err)
-	t.Logf("runtime root: %s", runtimeRoot)
-
-	err = unix.Chmod(runtimeRoot, 0755)
-	require.NoError(t, err)
-
-	level, err := log.ParseLevel(logLevel)
-	require.NoError(t, err)
-
-	rt := &Runtime{
-		Log:        log.ConsoleLogger(true, level),
-		Root:       runtimeRoot,
-		LibexecDir: libexecDir,
-		//MonitorCgroup: "lxcri-monitor.slice",
+	rt := NewRuntime(os.Getuid() != 0)
+	rt.LogConfig.LogContext = map[string]string{
+		"test": t.Name(),
+	}
+	rt.LogConfig.LogConsole = true
+	if val, ok := os.LookupEnv("LXCRI_LIBEXEC"); ok {
+		rt.LibexecDir = val
 	}
 
 	require.NoError(t, rt.Init())
@@ -79,20 +52,18 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 	require.NoError(t, err)
 	t.Logf("container rootfs: %s", rootfs)
 
-	level, err := log.ParseLevel(logLevel)
-	require.NoError(t, err)
-
 	cmdAbs, err := filepath.Abs(cmd)
 	require.NoError(t, err)
 	cmdDest := "/" + filepath.Base(cmdAbs)
 
 	spec := specki.NewSpec(rootfs, cmdDest)
 	id := filepath.Base(rootfs)
+	clog := log.ConsoleLogger(true, log.DebugLevel).Str("test", t.Name()).Str("cid", id).Logger()
 	cfg := ContainerConfig{
 		ContainerID: id, Spec: spec,
-		Log:      log.ConsoleLogger(true, level),
+		Log:      clog,
 		LogFile:  "/dev/stderr",
-		LogLevel: logLevel,
+		LogLevel: "debug",
 	}
 	cfg.Spec.Linux.CgroupsPath = id + ".slice" // use /proc/self/cgroup"
 
@@ -105,7 +76,6 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 func TestEmptyNamespaces(t *testing.T) {
 	t.Parallel()
 	rt := newRuntime(t)
-	defer removeAll(t, rt.Root)
 
 	cfg := newConfig(t, "lxcri-test")
 	defer removeAll(t, cfg.Spec.Root.Path)
@@ -129,7 +99,6 @@ func TestSharedPIDNamespace(t *testing.T) {
 		t.Skipf("PID namespace sharing is only permitted as root.")
 	}
 	rt := newRuntime(t)
-	defer removeAll(t, rt.Root)
 
 	cfg := newConfig(t, "lxcri-test")
 	defer removeAll(t, cfg.Spec.Root.Path)
@@ -166,7 +135,6 @@ func TestSharedPIDNamespace(t *testing.T) {
 func TestNonEmptyCgroup(t *testing.T) {
 	t.Parallel()
 	rt := newRuntime(t)
-	defer removeAll(t, rt.Root)
 
 	cfg := newConfig(t, "lxcri-test")
 	defer removeAll(t, cfg.Spec.Root.Path)
@@ -257,7 +225,6 @@ func TestRuntimeUnprivileged(t *testing.T) {
 	}
 
 	rt := newRuntime(t)
-	defer removeAll(t, rt.Root)
 
 	cfg := newConfig(t, "lxcri-test")
 	defer removeAll(t, cfg.Spec.Root.Path)
