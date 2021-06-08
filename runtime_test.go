@@ -24,19 +24,18 @@ var libexecDir string
 
 func init() {
 	libexecDir = os.Getenv("LIBEXEC_DIR")
-}
 
-func newRuntime(t *testing.T) *Runtime {
-	rt := NewRuntime(os.Getuid() != 0)
-	rt.LogConfig.LogContext = map[string]string{
-		"test": t.Name(),
-	}
+	rt = NewRuntime(os.Getuid() != 0)
 	rt.LogConfig.LogConsole = true
 	rt.LibexecDir = libexecDir
 
-	require.NoError(t, rt.Init())
-	return rt
+	rt.Init()
+	if err := rt.Init(); err != nil {
+		panic(err)
+	}
 }
+
+var rt *Runtime
 
 // NOTE a container that was created successfully must always be
 // deleted, otherwise the go test runner will hang because it waits
@@ -73,7 +72,6 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 
 func TestEmptyNamespaces(t *testing.T) {
 	t.Parallel()
-	rt := newRuntime(t)
 
 	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
@@ -96,7 +94,6 @@ func TestSharedPIDNamespace(t *testing.T) {
 	if os.Getuid() != 0 {
 		t.Skipf("PID namespace sharing is only permitted as root.")
 	}
-	rt := newRuntime(t)
 
 	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
@@ -132,7 +129,6 @@ func TestSharedPIDNamespace(t *testing.T) {
 // sudo chown -R $(whoami):$(whoami) /sys/fs/cgroup/$(cat /proc/self/cgroup  | grep '^0:' | cut -d: -f3)
 func TestNonEmptyCgroup(t *testing.T) {
 	t.Parallel()
-	rt := newRuntime(t)
 
 	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
@@ -194,7 +190,6 @@ func TestRuntimePrivileged(t *testing.T) {
 		t.Skipf("This tests only runs as root")
 	}
 
-	rt := newRuntime(t)
 	defer removeAll(t, rt.Root)
 
 	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
@@ -215,8 +210,6 @@ func TestRuntimeUnprivileged(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skipf("This test only runs as non-root")
 	}
-
-	rt := newRuntime(t)
 
 	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
