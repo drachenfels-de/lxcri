@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lxc/lxcri/pkg/log"
 	"github.com/lxc/lxcri/pkg/specki"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
@@ -53,10 +52,8 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 	spec := specki.NewSpec(rootfs, cmdDest)
 	id := filepath.Base(rootfs)
 
-	clog := log.ConsoleLogger(true, log.DebugLevel).Str("test", t.Name()).Str("cid", id).Logger()
 	cfg := ContainerConfig{
 		ContainerID: id, Spec: spec,
-		Log:      clog,
 		LogFile:  "/dev/stderr",
 		LogLevel: "debug",
 	}

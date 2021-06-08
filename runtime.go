@@ -304,7 +304,7 @@ func (rt *Runtime) Load(containerID string) (*Container, error) {
 	}
 	c := &Container{
 		ContainerConfig: &ContainerConfig{
-			Log: rt.Log,
+			Log: rt.Log.With().Str("cid", containerID).Logger(),
 		},
 		runtimeDir: dir,
 	}
