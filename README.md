@@ -1,6 +1,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/lxc/lxcri.svg)](https://pkg.go.dev/github.com/lxc/lxcri)
 ![Build](https://github.com/lxc/lxcri/actions/workflows/build.yml/badge.svg)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/lxc/lxcri.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/lxc/lxcri/alerts/)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lxc/lxcri)](https://goreportcard.com/report/github.com/lxc/lxcri)
 
 # About
 
