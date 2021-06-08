@@ -113,10 +113,7 @@ func TestSharedPIDNamespace(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
-	err = c.Release()
-	require.NoError(t, err)
-
-	err = rt.Delete(ctx, c.ContainerID, true)
+	err = c.Delete(ctx, true)
 	require.NoError(t, err)
 }
 
@@ -165,12 +162,9 @@ func TestNonEmptyCgroup(t *testing.T) {
 
 	c2, err := rt.Create(ctx, cfg2)
 	require.Error(t, err)
-	t.Logf("create error: %s", err)
+	t.Logf("expected create error: %s", err)
 
-	err = c.Release()
-	require.NoError(t, err)
-
-	err = rt.Delete(ctx, c.ContainerID, true)
+	err = c.Delete(ctx, true)
 	require.NoError(t, err)
 
 	err = c2.Release()
@@ -178,7 +172,7 @@ func TestNonEmptyCgroup(t *testing.T) {
 
 	require.NotNil(t, c2)
 	err = rt.Delete(ctx, c2.ContainerID, true)
-	require.NoError(t, err)
+	require.Error(t, ErrNotExist, err)
 }
 
 func TestRuntimePrivileged(t *testing.T) {
@@ -256,13 +250,6 @@ func testRuntime(t *testing.T, rt *Runtime, cfg *ContainerConfig) {
 	require.NoError(t, err)
 	require.Equal(t, specs.StateRunning, state.SpecState.Status)
 
-	err = rt.Delete(ctx, c.ContainerID, true)
-	require.NoError(t, err)
-
-	state, err = c.State()
-	require.NoError(t, err)
-	require.Equal(t, specs.StateStopped, state.SpecState.Status)
-
-	err = c.Release()
+	err = c.Delete(ctx, true)
 	require.NoError(t, err)
 }

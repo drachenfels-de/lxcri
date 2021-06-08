@@ -298,6 +298,7 @@ func (rt *Runtime) keepEnv(names ...string) {
 // The logger Container.Log is set to Runtime.Log by default.
 // A loaded Container must be released with Container.Release after use.
 func (rt *Runtime) Load(containerID string) (*Container, error) {
+	rt.Log.Debug().Str("cid", containerID).Msg("loading container")
 	dir := filepath.Join(rt.Root, containerID)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return nil, ErrNotExist
@@ -471,8 +472,16 @@ func (rt *Runtime) Delete(ctx context.Context, containerID string, force bool) e
 		return os.RemoveAll(filepath.Join(rt.Root, containerID))
 	}
 
-	defer c.Release()
+	return c.Delete(ctx, force)
+}
 
+// Delete removes the container from the runtime directory.
+func (c *Container) Delete(ctx context.Context, force bool) error {
+	defer func() {
+		if err := c.Release(); err != nil {
+			c.Log.Error().Msgf("failed to release container: %s", err)
+		}
+	}()
 	state, err := c.ContainerState()
 	if err != nil {
 		return err

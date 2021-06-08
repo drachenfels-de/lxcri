@@ -106,6 +106,7 @@ func (c *Container) create() error {
 	if err != nil {
 		return err
 	}
+	c.Log.Info().Msgf("create new container Container:%p LinuxContainer:%p", c, c.LinuxContainer)
 
 	return nil
 }
@@ -124,6 +125,8 @@ func (c *Container) load() error {
 	if err != nil {
 		return fmt.Errorf("failed to create lxc container: %w", err)
 	}
+
+	c.Log.Info().Msgf("load container Container:%p LinuxContainer:%p", c, c.LinuxContainer)
 
 	err = c.LinuxContainer.LoadConfigFile(c.ConfigFilePath())
 	if err != nil {
