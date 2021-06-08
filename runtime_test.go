@@ -187,8 +187,6 @@ func TestRuntimePrivileged(t *testing.T) {
 		t.Skipf("This tests only runs as root")
 	}
 
-	defer removeAll(t, rt.Root)
-
 	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
 
