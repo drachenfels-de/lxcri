@@ -103,6 +103,7 @@ type Runtime struct {
 	ConfigPath string `json:"-"`
 }
 
+// LogConfig is the runtime log configuration.
 type LogConfig struct {
 	file *os.File
 
@@ -117,6 +118,7 @@ type LogConfig struct {
 	ContainerLogFile  string `json:",omitempty"`
 }
 
+// Timeouts are the timeouts for the Runtime API methods
 type Timeouts struct {
 	CreateTimeout uint `json:",omitempty"`
 	StartTimeout  uint `json:",omitempty"`
@@ -545,6 +547,7 @@ func (rt *Runtime) List() ([]string, error) {
 	return visible, nil
 }
 
+// DefaultRuntime is the default Runtime configuration.
 var DefaultRuntime = Runtime{
 	Root:          "/run/lxcri",
 	MonitorCgroup: "lxcri-monitor.slice",
@@ -571,6 +574,10 @@ var DefaultRuntime = Runtime{
 	},
 }
 
+// NewRuntime creates a new runtime instance.
+// The DefaultRuntime is returned as is if user is false,
+// otherwise the runtime root and log file paths are set
+// to user specific paths.
 func NewRuntime(user bool) *Runtime {
 	rt := DefaultRuntime
 	if user {
@@ -583,6 +590,8 @@ func NewRuntime(user bool) *Runtime {
 	return &rt
 }
 
+// Release releases resources aquired by the runtime instance.
+// E.g the runtime log file.
 func (rt *Runtime) Release() error {
 	if rt.LogConfig.file != nil {
 		return rt.LogConfig.file.Close()
@@ -590,6 +599,14 @@ func (rt *Runtime) Release() error {
 	return nil
 }
 
+// LoadConfig loads the runtime configuration file.
+// Values set in the config file overwrite the defaults from DefaultRuntime.
+// Tthe first existing configuration file is used, and the
+// configuration file path is evaluated in the following order:
+//
+// 1. the value of the `LXCRI_CONFIG` environment variable
+// 2. the users config file `~/.config/lxcri.yaml`
+// 3. The system config file `/etc/lxcri/lxcri.yaml`
 func (rt *Runtime) LoadConfig(ConfigPath string) error {
 	rt.ConfigPath = ConfigPath
 	if rt.ConfigPath == "" {
@@ -601,25 +618,16 @@ func (rt *Runtime) LoadConfig(ConfigPath string) error {
 	return nil
 }
 
-// defaultConfigPath returns the path to the runtime config file.
-// The path is evaluated in the following order:
-//
-// * The value of the LXCRI_CONFIG environment variable, if set.
-// * The users config file ~/.config/lxcri.yaml, if exists.
-// * The system config file "/etc/lxcri/lxcri.yaml"
-
 func defaultConfigPath() string {
 	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok && val != "" {
 		return val
 	}
-
 	if val, ok := os.LookupEnv("HOME"); ok && val != "" {
 		cfgFile := filepath.Join(val, ".config/lxcri.yaml")
 		if _, err := os.Stat(cfgFile); err == nil {
 			return cfgFile
 		}
 	}
-
 	return "/etc/lxcri/lxcri.yaml"
 }
 

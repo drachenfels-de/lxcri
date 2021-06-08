@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// TimeFormat is the default timestamp format for the zerolog logger.
 var TimeFormat = "15:04:05.000"
 
 // zerlog log levels are mirrored for convenience.
