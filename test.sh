@@ -2,6 +2,7 @@
 
 MAX_OPEN_FILES=${MAX_OPEN_FILES:-30}
 ARGS=${@:---failfast --count 1 -v ./...}
+UID=$(id -u)
 
 ## wait for XDG_RUNTIME_DIR creation
 if [ $UID != 0 ]; then
