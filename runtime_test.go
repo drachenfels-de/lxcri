@@ -26,6 +26,7 @@ func init() {
 
 	rt = NewRuntime(os.Getuid() != 0)
 	rt.LogConfig.LogConsole = true
+	rt.LogConfig.LogLevel = "debug"
 	rt.LibexecDir = libexecDir
 
 	rt.Init()
@@ -55,7 +56,7 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 	cfg := ContainerConfig{
 		ContainerID: id, Spec: spec,
 		LogFile:  "/dev/stderr",
-		LogLevel: "debug",
+		LogLevel: "trace",
 	}
 	cfg.Spec.Linux.CgroupsPath = id + ".slice" // use /proc/self/cgroup"
 
