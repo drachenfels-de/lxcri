@@ -20,15 +20,19 @@ func removeAll(t *testing.T, filename string) {
 	require.NoError(t, err)
 }
 
+var libexecDir string
+
+func init() {
+	libexecDir = os.Getenv("LIBEXEC_DIR")
+}
+
 func newRuntime(t *testing.T) *Runtime {
 	rt := NewRuntime(os.Getuid() != 0)
 	rt.LogConfig.LogContext = map[string]string{
 		"test": t.Name(),
 	}
 	rt.LogConfig.LogConsole = true
-	if val, ok := os.LookupEnv("LXCRI_LIBEXEC"); ok {
-		rt.LibexecDir = val
-	}
+	rt.LibexecDir = libexecDir
 
 	require.NoError(t, rt.Init())
 	return rt
@@ -44,10 +48,8 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 	require.NoError(t, err)
 	t.Logf("container rootfs: %s", rootfs)
 
-	cmd = filepath.Join("/tmp", cmd)
-	cmdAbs, err := filepath.Abs(cmd)
 	require.NoError(t, err)
-	cmdDest := "/" + filepath.Base(cmdAbs)
+	cmdDest := "/" + filepath.Base(cmd)
 
 	spec := specki.NewSpec(rootfs, cmdDest)
 	id := filepath.Base(rootfs)
@@ -63,8 +65,9 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 
 	//
 	cfg.Spec.Mounts = append(cfg.Spec.Mounts,
-		specki.BindMount(cmdAbs, cmdDest),
+		specki.BindMount(cmd, cmdDest),
 	)
+	fmt.Printf("%#v\n", cfg.Spec.Mounts)
 	return &cfg
 }
 
@@ -72,7 +75,7 @@ func TestEmptyNamespaces(t *testing.T) {
 	t.Parallel()
 	rt := newRuntime(t)
 
-	cfg := newConfig(t, "lxcri-test")
+	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
 
 	// Clearing all namespaces should not work,
@@ -95,7 +98,7 @@ func TestSharedPIDNamespace(t *testing.T) {
 	}
 	rt := newRuntime(t)
 
-	cfg := newConfig(t, "lxcri-test")
+	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
@@ -131,7 +134,7 @@ func TestNonEmptyCgroup(t *testing.T) {
 	t.Parallel()
 	rt := newRuntime(t)
 
-	cfg := newConfig(t, "lxcri-test")
+	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
 
 	if os.Getuid() != 0 {
@@ -153,7 +156,7 @@ func TestNonEmptyCgroup(t *testing.T) {
 	//t.Logf("sleeping for a minute")
 	//time.Sleep(60*time.Second)
 
-	cfg2 := newConfig(t, "lxcri-test")
+	cfg2 := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg2.Spec.Root.Path)
 
 	cfg2.Spec.Linux.CgroupsPath = cfg.Spec.Linux.CgroupsPath
@@ -194,7 +197,7 @@ func TestRuntimePrivileged(t *testing.T) {
 	rt := newRuntime(t)
 	defer removeAll(t, rt.Root)
 
-	cfg := newConfig(t, "lxcri-test")
+	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
 
 	testRuntime(t, rt, cfg)
@@ -215,7 +218,7 @@ func TestRuntimeUnprivileged(t *testing.T) {
 
 	rt := newRuntime(t)
 
-	cfg := newConfig(t, "lxcri-test")
+	cfg := newConfig(t, filepath.Join(rt.LibexecDir, "lxcri-test"))
 	defer removeAll(t, cfg.Spec.Root.Path)
 
 	// The container UID must have full access to the rootfs.

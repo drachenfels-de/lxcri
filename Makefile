@@ -18,13 +18,8 @@ SHELL_SCRIPTS = $(shell find . -name \*.sh)
 GO_SRC = $(shell find . -name \*.go | grep -v _test.go)
 C_SRC = $(shell find . -name \*.c)
 TESTCOUNT ?= 1
-# folder that contains the binaries used for testing
-# (defaults to the directory containing the Makefile)
-LIBEXEC_TESTDIR ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 # reduce open file descriptor limit for testing too detect file descriptor leaks early
 MAX_OPEN_FILES ?= 30
-export MAX_OPEN_FILES
-export LIBEXEC_TESTDIR
 
 all: fmt test
 
@@ -45,11 +40,17 @@ fmt:
 # NOTE: Running the test target requires a running systemd.
 .PHONY: test
 test: build lxcri-test
+	mkdir -p  /tmp/lxcri-test-libexec
+	install -v $(LIBEXEC_BINS) lxcri-test /tmp/lxcri-test-libexec
+	LIBEXEC_DIR=/tmp/lxcri-test-libexec \
+	MAX_OPEN_FILES=$(MAX_OPEN_FILES) \
 	./test.sh --failfast --count $(TESTCOUNT) ./...
 
 test-privileged: build lxcri-test
+	mkdir -p  /tmp/lxcri-test-libexec
+	install -v $(LIBEXEC_BINS) lxcri-test /tmp/lxcri-test-libexec
 	ulimit -n $(MAX_OPEN_FILES) && \
-		LXCRI_LIBEXEC=$(LIBEXEC_TESTDIR) \
+		LIBEXEC_DIR=/tmp/lxcri-test-libexec \
 		go test --failfast --count $(TESTCOUNT) -v ./...
 
 .PHONY: build
