@@ -118,7 +118,7 @@ func createMountDestination(c *Container, ms *specs.Mount) error {
 				return nil
 			}
 		}
-		return errorf("failed to access bind mount source %s: %w", ms.Source, err)
+		return errorf("failed to access bind mount source %#v: %w", ms, err)
 	}
 
 	if err != nil || info.IsDir() {
