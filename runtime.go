@@ -97,8 +97,8 @@ type Runtime struct {
 	// Runtime user detection using os.Getuid() or os.Geteuid() will not work.
 	usernsConfigured bool
 
-	LogConfig
-	Timeouts
+	LogConfig LogConfig
+	Timeouts  Timeouts
 
 	ConfigPath string `json:"-"`
 }
@@ -577,8 +577,8 @@ func NewRuntime(user bool) *Runtime {
 		base := fmt.Sprintf("/var/tmp/lxcri/user/%d", os.Getuid())
 		rt.Root = filepath.Join(base, "run")
 		log := filepath.Join(base, "lxcri.log")
-		rt.LogFile = log
-		rt.ContainerLogFile = log
+		rt.LogConfig.LogFile = log
+		rt.LogConfig.ContainerLogFile = log
 	}
 	return &rt
 }
