@@ -154,24 +154,24 @@ var (
 	// EssentialDevices is the minimum set of device files that must exist in an OCI compliant container.
 	// https://github.com/opencontainers/runtime-spec/blob/v1.0.2/config-linux.md#default-devices
 	EssentialDevices = []specs.LinuxDevice{
-		specs.LinuxDevice{Type: "c", Major: 1, Minor: 3, FileMode: modep(0666), Path: "/dev/null"},
-		specs.LinuxDevice{Type: "c", Major: 1, Minor: 5, FileMode: modep(0666), Path: "/dev/zero"},
-		specs.LinuxDevice{Type: "c", Major: 1, Minor: 7, FileMode: modep(0666), Path: "/dev/full"},
-		specs.LinuxDevice{Type: "c", Major: 1, Minor: 8, FileMode: modep(0666), Path: "/dev/random"},
-		specs.LinuxDevice{Type: "c", Major: 1, Minor: 9, FileMode: modep(0666), Path: "/dev/urandom"},
-		specs.LinuxDevice{Type: "c", Major: 5, Minor: 0, FileMode: modep(0666), Path: "/dev/tty"},
+		{Type: "c", Major: 1, Minor: 3, FileMode: modep(0666), Path: "/dev/null"},
+		{Type: "c", Major: 1, Minor: 5, FileMode: modep(0666), Path: "/dev/zero"},
+		{Type: "c", Major: 1, Minor: 7, FileMode: modep(0666), Path: "/dev/full"},
+		{Type: "c", Major: 1, Minor: 8, FileMode: modep(0666), Path: "/dev/random"},
+		{Type: "c", Major: 1, Minor: 9, FileMode: modep(0666), Path: "/dev/urandom"},
+		{Type: "c", Major: 5, Minor: 0, FileMode: modep(0666), Path: "/dev/tty"},
 	}
 
 	// EssentialDevicesAllow are the cgroup device permissions required for EssentialDevices.
 	EssentialDevicesAllow = []specs.LinuxDeviceCgroup{
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(3), Access: "rwm"}, // null
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(5), Access: "rwm"}, // zero
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(7), Access: "rwm"}, // full
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(8), Access: "rwm"}, // random
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(9), Access: "rwm"}, // urandom
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(5), Minor: int64p(0), Access: "rwm"}, // tty
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(5), Minor: int64p(2), Access: "rwm"}, // ptmx
-		specs.LinuxDeviceCgroup{Allow: true, Type: "c", Major: int64p(88), Access: "rwm"},                  // /dev/pts/{n}
+		{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(3), Access: "rwm"}, // null
+		{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(5), Access: "rwm"}, // zero
+		{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(7), Access: "rwm"}, // full
+		{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(8), Access: "rwm"}, // random
+		{Allow: true, Type: "c", Major: int64p(1), Minor: int64p(9), Access: "rwm"}, // urandom
+		{Allow: true, Type: "c", Major: int64p(5), Minor: int64p(0), Access: "rwm"}, // tty
+		{Allow: true, Type: "c", Major: int64p(5), Minor: int64p(2), Access: "rwm"}, // ptmx
+		{Allow: true, Type: "c", Major: int64p(88), Access: "rwm"},                  // /dev/pts/{n}
 	}
 )
 
@@ -252,12 +252,12 @@ func NewSpec(rootfs string, cmd string, args ...string) *specs.Spec {
 		Linux: &specs.Linux{
 			Namespaces: []specs.LinuxNamespace{
 				// isolate all namespaces by default
-				specs.LinuxNamespace{Type: specs.PIDNamespace},
-				specs.LinuxNamespace{Type: specs.MountNamespace},
-				specs.LinuxNamespace{Type: specs.IPCNamespace},
-				specs.LinuxNamespace{Type: specs.UTSNamespace},
-				specs.LinuxNamespace{Type: specs.CgroupNamespace},
-				specs.LinuxNamespace{Type: specs.NetworkNamespace},
+				{Type: specs.PIDNamespace},
+				{Type: specs.MountNamespace},
+				{Type: specs.IPCNamespace},
+				{Type: specs.UTSNamespace},
+				{Type: specs.CgroupNamespace},
+				{Type: specs.NetworkNamespace},
 			},
 			Devices: EssentialDevices,
 			Resources: &specs.LinuxResources{
@@ -265,10 +265,10 @@ func NewSpec(rootfs string, cmd string, args ...string) *specs.Spec {
 			},
 		},
 		Mounts: []specs.Mount{
-			specs.Mount{Destination: "/proc", Source: "proc", Type: "proc",
+			{Destination: "/proc", Source: "proc", Type: "proc",
 				Options: []string{"rw", "nosuid", "nodev", "noexec", "relatime"},
 			},
-			specs.Mount{Destination: "/dev", Source: "tmpfs", Type: "tmpfs",
+			{Destination: "/dev", Source: "tmpfs", Type: "tmpfs",
 				Options: []string{"rw", "nosuid", "noexec", "relatime", "dev"},
 				// devtmpfs (rw,nosuid,relatime,size=6122620k,nr_inodes=1530655,mode=755,inode64)
 			},

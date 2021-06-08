@@ -199,7 +199,7 @@ func (rt *Runtime) Init() error {
 	}
 
 	rt.Hooks.CreateContainer = []specs.Hook{
-		specs.Hook{Path: rt.libexec(ExecHookBuiltin)},
+		{Path: rt.libexec(ExecHookBuiltin)},
 	}
 	return nil
 }

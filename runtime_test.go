@@ -136,10 +136,10 @@ func TestNonEmptyCgroup(t *testing.T) {
 
 	if os.Getuid() != 0 {
 		cfg.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
+			{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 		cfg.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
+			{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 	}
 
@@ -160,10 +160,10 @@ func TestNonEmptyCgroup(t *testing.T) {
 
 	if os.Getuid() != 0 {
 		cfg2.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
+			{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 		cfg2.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
-			specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
+			{ContainerID: 0, HostID: 20000, Size: 65536},
 		}
 	}
 
@@ -230,10 +230,10 @@ func TestRuntimeUnprivileged(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg.Spec.Linux.UIDMappings = []specs.LinuxIDMapping{
-		specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
+		{ContainerID: 0, HostID: 20000, Size: 65536},
 	}
 	cfg.Spec.Linux.GIDMappings = []specs.LinuxIDMapping{
-		specs.LinuxIDMapping{ContainerID: 0, HostID: 20000, Size: 65536},
+		{ContainerID: 0, HostID: 20000, Size: 65536},
 	}
 
 	testRuntime(t, rt, cfg)
