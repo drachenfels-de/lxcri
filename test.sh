@@ -15,7 +15,7 @@ fi
 
 cp lxcri-test /tmp
 
-export LXCRI_LIBEXEC=/usr/local/libexec/lxcri
+export LIBEXEC_DIR=${LIBEXEC_DIR:-$PWD}
 
 # must set the XDG_RUNTIME_DIR if user was switched with sudo|su
 export XDG_RUNTIME_DIR=/run/user/$UID
