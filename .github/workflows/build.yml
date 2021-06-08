@@ -20,6 +20,7 @@ jobs:
       - name: Check format of go sources
         run: |
           go fmt ./...
+          gofmt -s -w .
           git diff --exit-code
 
       - name: Check format of shell scripts

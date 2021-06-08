@@ -35,6 +35,7 @@ update-tools:
 
 fmt:
 	go fmt ./...
+	gofmt -s -w .
 	shfmt -w $(SHELL_SCRIPTS)
 	clang-format -i --style=file $(C_SRC)
 	golint ./...
