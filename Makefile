@@ -12,7 +12,7 @@ PKG_CONFIG_PATH ?= $(PREFIX)/lib/pkgconfig
 # Note: (Exported) environment variables are NOT visible in the environment of the $(shell ...) function.
 export PKG_CONFIG_PATH
 VERSION ?= $(COMMIT)
-LDFLAGS=-X main.version=$(VERSION) -X main.defaultLibexecDir=$(LIBEXEC_DIR)
+LDFLAGS=-X main.version=$(VERSION) -X github.com/lxc/lxcri.defaultLibexecDir=$(LIBEXEC_DIR)
 CC ?= cc
 SHELL_SCRIPTS = $(shell find . -name \*.sh)
 GO_SRC = $(shell find . -name \*.go | grep -v _test.go)

@@ -24,8 +24,7 @@ import (
 const (
 	// BundleConfigFile is the name of the OCI container bundle config file.
 	// The content is the JSON encoded specs.Spec.
-	BundleConfigFile  = "config.json"
-	DefaultLibexecDir = "/usr/libexec/lxcri"
+	BundleConfigFile = "config.json"
 )
 
 // Required runtime executables loaded from Runtime.LibexecDir
@@ -37,6 +36,8 @@ var (
 	ExecHookBuiltin = "lxcri-hook-builtin"
 	// ExecInit is the container init process that execs the container process.
 	ExecInit = "lxcri-init"
+
+	defaultLibexecDir = "/usr/libexec/lxcri"
 )
 
 var (
@@ -548,7 +549,7 @@ var DefaultRuntime = Runtime{
 	Root:          "/run/lxcri",
 	MonitorCgroup: "lxcri-monitor.slice",
 	PayloadCgroup: "lxcri.slice",
-	LibexecDir:    DefaultLibexecDir,
+	LibexecDir:    defaultLibexecDir,
 	Features: RuntimeFeatures{
 		Apparmor:      true,
 		Capabilities:  true,
