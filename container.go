@@ -302,7 +302,7 @@ func (c *Container) getContainerInitState() (specs.ContainerState, error) {
 }
 
 func (c *Container) kill(ctx context.Context, signum unix.Signal) error {
-	c.Log.Info().Int("signum", int(signum)).Msg("killing container process")
+	c.Log.Info().Int("signum", int(signum)).Msg("killing container processes")
 
 	// From `man pid_namespaces`: If the "init" process of a PID namespace terminates, the kernel
 	// terminates all of the processes in the namespace via a SIGKILL signal.
@@ -360,6 +360,7 @@ func (c *Container) supportsConfigItem(keys ...string) bool {
 
 // Release releases resources allocated by the container.
 func (c *Container) Release() error {
+	c.Log.Debug().Msg("releasing container")
 	return c.LinuxContainer.Release()
 }
 

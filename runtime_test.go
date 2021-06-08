@@ -59,7 +59,6 @@ func newConfig(t *testing.T, cmd string, args ...string) *ContainerConfig {
 	}
 	cfg.Spec.Linux.CgroupsPath = id + ".slice" // use /proc/self/cgroup"
 
-	//
 	cfg.Spec.Mounts = append(cfg.Spec.Mounts,
 		specki.BindMount(cmd, cmdDest),
 	)

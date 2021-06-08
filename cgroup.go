@@ -343,7 +343,7 @@ func killCgroup(ctx context.Context, c *Container, sig unix.Signal) error {
 		}
 		vals := strings.Split(s, "\n")
 
-		c.Log.Debug().Msgf("killing %d cgroup procs: %s", len(vals), vals)
+		c.Log.Debug().Msgf("cgroup contains #%d procs: %s", len(vals), vals)
 		for _, s := range vals {
 			pid, err := strconv.Atoi(s)
 			if err != nil {
@@ -352,8 +352,11 @@ func killCgroup(ctx context.Context, c *Container, sig unix.Signal) error {
 			}
 			// do not kill the monitor process
 			if pid == c.Pid {
+				c.Log.Debug().Msgf("skip monitor process %d", pid)
 				continue
 			}
+
+			c.Log.Debug().Msgf("killing process: %d", pid)
 			err = unix.Kill(pid, sig)
 			if err != nil && err != unix.ESRCH {
 				c.Log.Error().Msgf("failed to kill %d: %s", pid, err)

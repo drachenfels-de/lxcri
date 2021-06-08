@@ -460,7 +460,7 @@ func (rt *Runtime) Kill(ctx context.Context, c *Container, signum unix.Signal) e
 // If the container is not stopped but force is set to true,
 // the container will be killed with unix.SIGKILL.
 func (rt *Runtime) Delete(ctx context.Context, containerID string, force bool) error {
-	rt.Log.Info().Bool("force", force).Msg("delete container")
+	rt.Log.Info().Bool("force", force).Str("cid", containerID).Msg("delete container")
 	c, err := rt.Load(containerID)
 	if err == ErrNotExist {
 		return err
