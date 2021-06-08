@@ -13,8 +13,6 @@ if [ $UID != 0 ]; then
 	fi
 fi
 
-cp lxcri-test /tmp
-
 export LIBEXEC_DIR=${LIBEXEC_DIR:-$PWD}
 
 # must set the XDG_RUNTIME_DIR if user was switched with sudo|su

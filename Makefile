@@ -40,14 +40,14 @@ fmt:
 # NOTE: Running the test target requires a running systemd.
 .PHONY: test
 test: build lxcri-test
-	mkdir -p  /tmp/lxcri-test-libexec
+	install -d -m 777 /tmp/lxcri-test-libexec
 	install -v $(LIBEXEC_BINS) lxcri-test /tmp/lxcri-test-libexec
 	LIBEXEC_DIR=/tmp/lxcri-test-libexec \
 	MAX_OPEN_FILES=$(MAX_OPEN_FILES) \
 	./test.sh --failfast --count $(TESTCOUNT) ./...
 
 test-privileged: build lxcri-test
-	mkdir -p  /tmp/lxcri-test-libexec
+	install -d -m 777  /tmp/lxcri-test-libexec
 	install -v $(LIBEXEC_BINS) lxcri-test /tmp/lxcri-test-libexec
 	ulimit -n $(MAX_OPEN_FILES) && \
 		LIBEXEC_DIR=/tmp/lxcri-test-libexec \
