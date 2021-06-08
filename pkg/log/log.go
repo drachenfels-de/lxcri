@@ -60,8 +60,8 @@ func ParseLevel(level string) (zerolog.Level, error) {
 // NewLogger creates a new zerlog.Context from the given arguments.
 // The returned context is configured to log with timestamp and caller information.
 func NewLogger(out io.Writer, level zerolog.Level) zerolog.Context {
-	// NOTE Unfortunately it's not possible change the possition of the timestamp.
-	// The ttimestamp is appended to the to the log output because it is dynamically rendered
+	// NOTE Unfortunately it's not possible change the position of the timestamp.
+	// The timestamp is appended to the to the log output because it is dynamically rendered
 	// see https://github.com/rs/zerolog/issues/109
 	return zerolog.New(out).Level(level).With().Timestamp().Caller()
 }

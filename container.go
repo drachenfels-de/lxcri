@@ -470,7 +470,7 @@ func (c *Container) attachOptions(procSpec *specs.Process, execOpts *ExecOptions
 func (c *Container) SetLog(filename string, level string) error {
 	// Do not write to stdout by default.
 	// Stdout belongs to the container process.
-	// Explicitly disable it - allthough it is currently the default.
+	// Explicitly disable it - although it is currently the default.
 
 	lxcLevel := parseContainerLogLevel(level)
 
