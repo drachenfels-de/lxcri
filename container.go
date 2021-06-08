@@ -2,6 +2,7 @@ package lxcri
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -310,7 +311,16 @@ func (c *Container) kill(ctx context.Context, signum unix.Signal) error {
 	// but handles some signals on its own. E.g SIGHUP tells the monitor process to hang up the terminal
 	// and terminate the init process with SIGTERM.
 	err := killCgroup(ctx, c, signum)
-	if err != nil && !os.IsNotExist(err) {
+
+	// The cgroup could be deleted by liblxc while operating on it,
+	// e.g if the container process(es) terminate prematurely.
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if errors.Is(err, unix.ENODEV) {
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("failed to kill group: %s", err)
 	}
 	return nil
