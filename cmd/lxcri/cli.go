@@ -235,6 +235,7 @@ func main() {
 		if err := clxc.Init(); err != nil {
 			return err
 		}
+		clxc.Log.Debug().Strs("args", os.Args).Msg("started with")
 
 		return nil
 	}
@@ -249,7 +250,7 @@ func main() {
 	cmdDuration := time.Since(startTime)
 
 	if err != nil {
-		clxc.Log.Error().Err(err).Dur("duration", cmdDuration).Msg("cmd failed")
+		clxc.Log.Error().Err(err).Dur("duration", cmdDuration).Msg("command failed")
 		clxc.Release()
 		// write diagnostics message to stderr for crio/kubelet
 		println(err.Error())
@@ -262,7 +263,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	clxc.Log.Debug().Dur("duration", cmdDuration).Msg("cmd completed")
+	clxc.Log.Debug().Dur("duration", cmdDuration).Msg("command completed")
 	if err := clxc.Release(); err != nil {
 		println(err.Error())
 		os.Exit(1)
