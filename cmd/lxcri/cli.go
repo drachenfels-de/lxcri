@@ -111,8 +111,9 @@ func main() {
 		},
 		&cli.BoolFlag{
 			Name:        "log-console",
-			Usage:       "write log output to stdout. --log-file and --container-log-file options are ignored",
+			Usage:       "write log output to stdout (defaults to true if fd 0 is a tty, --log-file and --container-log-file options are ignored)",
 			Destination: &clxc.LogConfig.LogConsole,
+			Value:       isTerminal(0),
 		},
 		&cli.StringFlag{
 			Name:    "root",

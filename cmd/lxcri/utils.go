@@ -51,3 +51,9 @@ func createPidFile(path string, pid int) error {
 	}
 	return nil
 }
+
+// copied from golang.org/x/term/term_unix.go
+func isTerminal(fd int) bool {
+	_, err := unix.IoctlGetTermios(fd, unix.TCGETS)
+	return err == nil
+}
