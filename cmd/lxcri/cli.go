@@ -384,20 +384,6 @@ func doStart(ctxcli *cli.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	if err := doStartInternal(ctx); err != nil {
-		clxc.Log.Error().Msgf("failed to start  container: %s", err)
-		//  a new context because start may fail with a timeout.
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(clxc.Timeouts.DeleteTimeout)*time.Second)
-		defer cancel()
-		if err := clxc.Delete(ctx, clxc.containerID, true); err != nil {
-			clxc.Log.Error().Err(err).Msg("failed to destroy container")
-		}
-		return err
-	}
-	return nil
-}
-
-func doStartInternal(ctx context.Context) error {
 	c, err := clxc.loadContainer(clxc.containerID)
 	if err != nil {
 		return err
