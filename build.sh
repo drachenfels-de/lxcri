@@ -67,11 +67,13 @@ download $CRICTL $CRICTL_URL $CRICTL_SUM
 download $LXC_SRC $LXC_SRC_URL $LXC_SRC_SUM
 download $GOLANG $GOLANG_URL $GOLANG_SUM
 
+DEV="${DEV:-}"
+
 # if DEV environment variable is defined, then build lxcri from
 # a tarball of the latest (local) commit.
-if [ $DEV ]; then
+if ! [ -z $DEV ]; then
 	LXCRI_SRC=lxcri-master.tar.gz
-	LXCRI_VERSION=$(shell git describe --always --tags --long)
+	LXCRI_VERSION=$(git describe --always --tags --long)
 	git archive --prefix lxcri-master/ -o $DL/$LXCRI_SRC HEAD
 else
 	download $LXCRI_SRC $LXCRI_SRC_URL $LXCRI_SRC_SUM
