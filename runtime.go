@@ -205,10 +205,19 @@ func (rt *Runtime) Init() error {
 	return nil
 }
 
+// ConfigureLogger creates the logger instance for the Runtime.
+// The ContainerLogFile  is set to /dev/stdout if LogConsole is enabled.
+// ConfigureLogger is already called from Init.
+// NOTE: Don't call ConfigureLogger while the logger is in use.
 func (rt *Runtime) ConfigureLogger() error {
 	level, err := zerolog.ParseLevel(rt.LogConfig.LogLevel)
 	if err != nil {
 		return fmt.Errorf("failed to parse log level: %w", err)
+	}
+
+	oldLogFile := rt.LogConfig.file
+	if oldLogFile != nil {
+		rt.Log.Info().Msgf("reconfigure logger - closing current log file %s", oldLogFile.Name())
 	}
 
 	var logCtx zerolog.Context
@@ -232,6 +241,13 @@ func (rt *Runtime) ConfigureLogger() error {
 		logCtx = logCtx.Str(k, v)
 	}
 	rt.Log = logCtx.Logger()
+
+	// The new logger instance is ready, so we can close the old one now.
+	// FIXME what about race-conditions with parallel calls to the logger ?
+	// -> replace rt.Log with function and protect Logger configuration with mutex ?
+	if oldLogFile != nil {
+		oldLogFile.Close()
+	}
 
 	return nil
 }
