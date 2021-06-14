@@ -106,27 +106,27 @@ func (c *Container) create() error {
 	if err != nil {
 		return err
 	}
-	c.Log.Info().Msgf("create new container Container:%p LinuxContainer:%p", c, c.LinuxContainer)
+	c.Log.Debug().Msgf("create new container Container:%p LinuxContainer:%p", c, c.LinuxContainer)
 
 	return nil
 }
 
 func (c *Container) load() error {
+	c.Log.Debug().Str("config", c.RuntimePath("lxcri.json")).Msgf("loading container")
 	err := specki.DecodeJSONFile(c.RuntimePath("lxcri.json"), c)
 	if err != nil {
 		return fmt.Errorf("failed to load container config: %w", err)
 	}
 
+	// FIXME use access (read/write) check instead ?
 	_, err = os.Stat(c.ConfigFilePath())
 	if err != nil {
-		return fmt.Errorf("failed to load lxc config file: %w", err)
+		return fmt.Errorf("failed to stat lxc config file: %w", err)
 	}
 	c.LinuxContainer, err = lxc.NewContainer(c.ContainerID, filepath.Dir(c.runtimeDir))
 	if err != nil {
 		return fmt.Errorf("failed to create lxc container: %w", err)
 	}
-
-	c.Log.Info().Msgf("load container Container:%p LinuxContainer:%p", c, c.LinuxContainer)
 
 	err = c.LinuxContainer.LoadConfigFile(c.ConfigFilePath())
 	if err != nil {

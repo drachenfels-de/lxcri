@@ -155,10 +155,9 @@ func (rt *Runtime) isPrivileged() bool {
 // Unsupported runtime features are disabled and a warning message is logged.
 // Init must be called once for a runtime instance before calling any other method.
 func (rt *Runtime) Init() error {
-	if err := rt.configureLogger(); err != nil {
-		return errorf("failed to configure logger: %w", err)
+	if err := rt.ConfigureLogger(); err != nil {
+		return err
 	}
-
 	rt.Log.Debug().Msgf("Using runtime root %s", rt.Root)
 	if err := os.MkdirAll(rt.Root, 0711); err != nil {
 		return errorf("failed to create rootfs %s: %w", rt.Root, err)
@@ -206,7 +205,7 @@ func (rt *Runtime) Init() error {
 	return nil
 }
 
-func (rt *Runtime) configureLogger() error {
+func (rt *Runtime) ConfigureLogger() error {
 	level, err := zerolog.ParseLevel(rt.LogConfig.LogLevel)
 	if err != nil {
 		return fmt.Errorf("failed to parse log level: %w", err)
@@ -216,6 +215,7 @@ func (rt *Runtime) configureLogger() error {
 	if rt.LogConfig.LogConsole {
 		// TODO use console logger if filepath is /dev/stdout or /dev/stderr ?
 		logCtx = log.ConsoleLogger(true, level)
+		// FIXME not a good idea to change the configuration here
 		rt.LogConfig.ContainerLogFile = "/dev/stdout"
 	} else {
 		if err := os.MkdirAll(filepath.Dir(rt.LogConfig.LogFile), 0750); err != nil {
@@ -610,47 +610,68 @@ func (rt *Runtime) Release() error {
 
 // LoadConfig loads the runtime configuration file.
 // Values set in the config file overwrite the defaults from DefaultRuntime.
-// Tthe first existing configuration file is used, and the
+// The first existing configuration file is used, and the
 // configuration file path is evaluated in the following order:
 //
-// 1. the value of the `LXCRI_CONFIG` environment variable
-// 2. the users config file `~/.config/lxcri.yaml`
-// 3. The system config file `/etc/lxcri/lxcri.yaml`
-func (rt *Runtime) LoadConfig(ConfigPath string) error {
-	rt.ConfigPath = ConfigPath
+// 1. the given config file path
+// 2. the value of the `LXCRI_CONFIG` environment variable
+// 3. the users config file `~/.config/lxcri.yaml`
+// 4. The system config file `/etc/lxcri/lxcri.yaml`
+func (rt *Runtime) LoadConfig(configPath string) error {
+	rt.ConfigPath = configPath
 	if rt.ConfigPath == "" {
-		rt.ConfigPath = defaultConfigPath()
-	}
-	if err := rt.loadConfig(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func defaultConfigPath() string {
-	if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok && val != "" {
-		return val
-	}
-	if val, ok := os.LookupEnv("HOME"); ok && val != "" {
-		cfgFile := filepath.Join(val, ".config/lxcri.yaml")
-		if _, err := os.Stat(cfgFile); err == nil {
-			return cfgFile
+		if val, ok := os.LookupEnv("LXCRI_CONFIG"); ok && val != "" {
+			rt.ConfigPath = val
 		}
 	}
-	return "/etc/lxcri/lxcri.yaml"
-}
 
-func (rt *Runtime) loadConfig() error {
+	// a user supplied config file must exist
+	if rt.ConfigPath != "" {
+		if _, err := os.Stat(rt.ConfigPath); err != nil {
+			return err
+		}
+	}
+
+	if rt.ConfigPath == "" {
+		if val, ok := os.LookupEnv("HOME"); ok && val != "" {
+			p := filepath.Join(val, ".config/lxcri.yaml")
+			_, err := os.Stat(p)
+
+			if err == nil {
+				rt.ConfigPath = p
+			}
+
+			// other errors (most often permission issues) are fatal
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+	}
+
+	if rt.ConfigPath == "" {
+		p := "/etc/lxcri/lxcri.yaml"
+		_, err := os.Stat(p)
+
+		if err == nil {
+			rt.ConfigPath = p
+		}
+
+		// other errors (most often permission issues) are fatal
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
 	if rt.ConfigPath == "" {
 		return nil
 	}
 
 	data, err := os.ReadFile(rt.ConfigPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
 	if err != nil {
 		return err
 	}
-	return yaml.Unmarshal(data, rt)
+	if err := yaml.Unmarshal(data, rt); err != nil {
+		return fmt.Errorf("failed to load config file %s: %w", rt.ConfigPath, err)
+	}
+	return nil
 }

@@ -51,7 +51,9 @@ func (app *app) releaseContainer(c *lxcri.Container) {
 
 func main() {
 	clxc.Runtime = lxcri.NewRuntime(os.Getuid() != 0)
-
+	if err := clxc.Runtime.LoadConfig(""); err != nil {
+		panic(err)
+	}
 	app := cli.NewApp()
 	app.Name = "lxcri"
 	app.Usage = "lxcri is a OCI compliant runtime wrapper for lxc"
@@ -219,24 +221,43 @@ func main() {
 	}
 
 	setupCmd := func(ctx *cli.Context) error {
-		if clxc.command == "list" || clxc.command == "config" {
-			return nil
-		}
-		containerID := ctx.Args().Get(0)
-		if len(containerID) == 0 {
-			return fmt.Errorf("missing container ID")
-		}
-		clxc.containerID = containerID
+		switch clxc.command {
+		case "list":
+			if err := clxc.ConfigureLogger(); err != nil {
+				return err
+			}
+		case "config":
+			// ConfigureLogger changes the logging configuration
+			// if LogConsole is enabled.
+			// The original configuration must be restored.
+			logCfg := clxc.Runtime.LogConfig
+			if err := clxc.ConfigureLogger(); err != nil {
+				return err
+			}
+			clxc.Runtime.LogConfig = logCfg
+		default:
+			containerID := ctx.Args().Get(0)
+			if len(containerID) == 0 {
+				return fmt.Errorf("missing container ID")
+			}
+			clxc.containerID = containerID
 
-		clxc.LogConfig.LogContext = map[string]string{
-			"cmd": clxc.command,
-			"cid": clxc.containerID,
+			clxc.LogConfig.LogContext = map[string]string{
+				"cmd": clxc.command,
+				"cid": clxc.containerID,
+			}
+			if err := clxc.Init(); err != nil {
+				return err
+			}
 		}
-		if err := clxc.Init(); err != nil {
-			return err
+
+		if clxc.ConfigPath == "" {
+			clxc.Log.Debug().Msgf("no config file loaded")
+		} else {
+			clxc.Log.Debug().Msgf("using config file %q", clxc.ConfigPath)
 		}
+
 		clxc.Log.Debug().Strs("args", os.Args).Msg("started with")
-
 		return nil
 	}
 
@@ -804,12 +825,17 @@ func configCmd() *cli.Command {
 				Usage: "write config to file",
 			},
 			&cli.BoolFlag{
-				Name:  "default",
-				Usage: "use the builtin default configuration",
+				Name:  "update",
+				Usage: "update the current config file (--out is ignored)",
 			},
 			&cli.BoolFlag{
-				Name:  "update-current",
-				Usage: "write to the current config file (--out is ignored)",
+				Name:  "default",
+				Usage: "use default config file",
+			},
+			&cli.BoolFlag{
+				Name:  "user",
+				Usage: "use non-root configuration for default",
+				Value: os.Getuid() != 0,
 			},
 			&cli.BoolFlag{
 				Name:  "quiet",
@@ -819,14 +845,14 @@ func configCmd() *cli.Command {
 	}
 }
 
-// NOTE lxcri config  > /etc/lxcri/lxcri.yaml does not work
 func doConfig(ctxcli *cli.Context) error {
 	// generate yaml
-	c := clxc
+	rt := clxc.Runtime
 	if ctxcli.Bool("default") {
-		c.Runtime = lxcri.NewRuntime(os.Getuid() != 0)
+		rt = lxcri.NewRuntime(ctxcli.Bool("user"))
 	}
-	data, err := yaml.Marshal(c)
+
+	data, err := yaml.Marshal(rt)
 	if err != nil {
 		return err
 	}
@@ -835,15 +861,16 @@ func doConfig(ctxcli *cli.Context) error {
 	}
 
 	out := ctxcli.String("out")
-	if ctxcli.Bool("update-current") {
-		out = clxc.ConfigPath
+	if ctxcli.Bool("update") {
+		out = clxc.Runtime.ConfigPath
 	}
-	if out != "" {
-		fmt.Printf("Writing to file %s\n", out)
-		if err := os.MkdirAll(filepath.Dir(out), 0755); err != nil {
-			return fmt.Errorf("failed to create config file parent directory: %w", err)
-		}
-		return os.WriteFile(out, data, 0644)
+	if out == "" {
+		fmt.Printf("No output file defined.\n")
+		return nil
 	}
-	return nil
+	fmt.Printf("Writing to file %s\n", out)
+	if err := os.MkdirAll(filepath.Dir(out), 0755); err != nil {
+		return fmt.Errorf("failed to create config file parent directory: %w", err)
+	}
+	return os.WriteFile(out, data, 0644)
 }
