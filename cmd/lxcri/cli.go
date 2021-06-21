@@ -274,7 +274,7 @@ func main() {
 		clxc.Log.Error().Err(err).Dur("duration", cmdDuration).Msg("command failed")
 		clxc.Release()
 		// write diagnostics message to stderr for crio/kubelet
-		println(err.Error())
+		fmt.Fprintf(os.Stderr, "lxcri://%s %s\n", clxc.containerID, err)
 
 		// exit with exit status of executed command
 		var errExec execError
