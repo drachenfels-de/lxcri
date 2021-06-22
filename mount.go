@@ -30,24 +30,11 @@ func removeMountOptions(rt *Runtime, fs string, opts []string, unsupported ...st
 }
 
 func filterMountOptions(rt *Runtime, fs string, opts []string) []string {
-
-	opts = removeMountOptions(rt, fs, opts, "private")
-
 	switch fs {
-	case "sysfs":
-		return removeMountOptions(rt, fs, opts, "rslave")
 	case "tmpfs":
-		// TODO make this configurable per filesystem
-		return removeMountOptions(rt, fs, opts, "private", "rprivate", "tmpcopyup")
-	case "cgroup2":
-		// TODO make this configurable per filesystem
-		return removeMountOptions(rt, fs, opts, "private", "rslave")
-		/*
-			case "mqueue":
-				return removeMountOptions(rt, fs, opts, "private")
-			case "devpts":
-				return removeMountOptions(rt, fs, opts, "private")
-		*/
+		// see doTmpfsCopyUp in runc
+		// https://github.com/opencontainers/runc/blob/47d37b33cd7e0645517e5f7e721dcb8cc23eb197/libcontainer/rootfs_linux.go#L334
+		return removeMountOptions(rt, fs, opts, "tmpcopyup")
 	}
 	return opts
 }
