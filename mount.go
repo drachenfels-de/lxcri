@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -51,11 +52,29 @@ func filterMountOptions(rt *Runtime, fs string, opts []string) []string {
 	return opts
 }
 
+type mounts []specs.Mount
+
+func (m mounts) Len() int {
+	return len(m)
+}
+
+func (m mounts) Less(i, j int) bool {
+	return m[i].Destination < m[j].Destination
+}
+
+func (m mounts) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
+}
+
 func configureMounts(rt *Runtime, c *Container) error {
 	// excplicitly disable auto-mounting
 	if err := c.setConfigItem("lxc.mount.auto", ""); err != nil {
 		return err
 	}
+
+	// Sort mounts by mount destination to handle nested mounts properly,
+	// since liblxc processes mounts in the given order.
+	sort.Sort(mounts(c.Spec.Mounts))
 
 	for i := range c.Spec.Mounts {
 		ms := c.Spec.Mounts[i]
