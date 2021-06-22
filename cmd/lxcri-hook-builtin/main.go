@@ -17,7 +17,7 @@ func main() {
 	}
 
 	for _, dev := range spec.Linux.Devices {
-		if err := createDevice(rootfs, dev); err != nil {
+		if err := createDevice(rootfs, dev, spec.Process.User); err != nil {
 			err := fmt.Errorf("failed to create device %s: %w", dev.Path, err)
 			fmt.Fprintln(os.Stderr, err.Error())
 		}
@@ -52,7 +52,7 @@ func getDeviceMode(dev specs.LinuxDevice) (uint32, error) {
 	return (fileType | perm), nil
 }
 
-func createDevice(rootfs string, dev specs.LinuxDevice) error {
+func createDevice(rootfs string, dev specs.LinuxDevice, user specs.User) error {
 	mode, err := getDeviceMode(dev)
 	if err != nil {
 		return err
@@ -61,11 +61,23 @@ func createDevice(rootfs string, dev specs.LinuxDevice) error {
 	// ignored by unix.Mknod if dev.Type is not unix.S_IFBLK or unix.S_IFCHR
 	mkdev := int(unix.Mkdev(uint32(dev.Major), uint32(dev.Minor)))
 
-	err = unix.Mknod(filepath.Join(rootfs, dev.Path), mode, mkdev)
+	devicePath := filepath.Join(rootfs, dev.Path)
+	err = unix.Mknod(devicePath, mode, mkdev)
 	if err != nil {
 		return fmt.Errorf("mknod failed: %s", err)
 	}
-	return nil
+
+	uid := user.UID
+	if dev.UID != nil {
+		uid = *dev.UID
+	}
+
+	gid := user.GID
+	if dev.GID != nil {
+		gid = *dev.GID
+	}
+
+	return os.Chown(devicePath, int(uid), int(gid))
 }
 
 func maskPath(p string) error {
