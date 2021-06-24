@@ -136,7 +136,7 @@ func (rt *Runtime) hasCapability(s string) bool {
 		rt.Log.Warn().Msgf("undefined capability %q", s)
 		return false
 	}
-	return rt.caps.Get(capability.CAPS, c)
+	return rt.caps.Get(capability.EFFECTIVE, c)
 }
 
 func (rt *Runtime) isPrivileged() bool {

@@ -65,10 +65,13 @@ func configureMounts(rt *Runtime, c *Container) error {
 
 	for i := range c.Spec.Mounts {
 		ms := c.Spec.Mounts[i]
-		if ms.Type == "cgroup" {
+		if ms.Type == "cgroup" || ms.Type == "cgroup2" {
 			// TODO check if hieararchy is cgroup v2 only (unified mode)
 			ms.Type = "cgroup2"
 			ms.Source = "cgroup2"
+
+			// FIXME only make it optional if a bind mount to /sys/* was (recursively) bind mounted
+			ms.Options = append(ms.Options, "optional")
 			// cgroup filesystem is automounted even with lxc.rootfs.managed = 0
 			// from 'man lxc.container.conf':
 			// If cgroup namespaces are enabled, then any cgroup auto-mounting request will be ignored,

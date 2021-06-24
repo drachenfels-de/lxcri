@@ -40,7 +40,8 @@ func configureInit(rt *Runtime, c *Container) error {
 		Source:      c.RuntimePath(),
 		Destination: strings.TrimLeft(initDir, "/"),
 		Type:        "bind",
-		Options:     []string{"bind", "ro", "nodev", "nosuid", "create=dir"},
+		//Options:     []string{"rslave", "bind", "ro", "nodev", "nosuid", "create=dir"},
+		Options: []string{"bind", "ro", "nodev", "nosuid", "create=dir"},
 	})
 
 	if err := c.setConfigItem("lxc.init.cwd", initDir); err != nil {
@@ -72,7 +73,8 @@ func configureInit(rt *Runtime, c *Container) error {
 		Source:      rt.libexec(ExecInit),
 		Destination: strings.TrimLeft(initCmd, "/"),
 		Type:        "bind",
-		Options:     []string{"bind", "ro", "nosuid"},
+		//Options:     []string{"slave", "bind", "ro", "nosuid"},
+		Options: []string{"bind", "ro", "nosuid"},
 	})
 	return c.setConfigItem("lxc.init.cmd", initCmd)
 }
