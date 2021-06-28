@@ -76,7 +76,7 @@ func TestFilterMountOptions(t *testing.T) {
 	opts := strings.Split("rw,rprivate,noexec,nosuid,nodev,tmpcopyup,create=dir", ",")
 	rt := Runtime{}
 	out := filterMountOptions(&rt, "tmpfs", opts)
-	require.Equal(t, []string{"rw", "noexec", "nosuid", "nodev", "create=dir"}, out)
+	require.Equal(t, []string{"rw", "rprivate", "noexec", "nosuid", "nodev", "create=dir"}, out)
 
 	out = filterMountOptions(&rt, "nosuchfs", opts)
 	require.Equal(t, opts, out)

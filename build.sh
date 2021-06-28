@@ -46,12 +46,10 @@ else
 	download $LXCRI_SRC $LXCRI_SRC_URL $LXCRI_SRC_SUM
 fi
 
-RELEASE="lxcri-${LXCRI_VERSION}"
 STATIC="${STATIC:-}"
 LXC_CONFIGURE=""
 if ! [ -z $STATIC ]; then
 	LXC_CONFIGURE="--enable-static -disable-shared"
-	RELEASE="${RELEASE}-static"
 fi
 
 BUILD_TAG=${BUILD_TAG:-github.com/lxc/lxcri:$LXCRI_VERSION}
@@ -65,11 +63,3 @@ $BUILD_CMD $@ \
 	--build-arg STATIC="$STATIC" \
 	--build-arg GOLANG="$DL/$GOLANG" \
 	--tag "$BUILD_TAG"
-
-c=$(buildah from ${BUILD_TAG})
-m=$(buildah mount $c)
-tar cf ${RELEASE}.tar -C $m/usr/local lxcri
-buildah unmount $c
-buildah delete $c
-
-echo "${RELEASE}.tar"

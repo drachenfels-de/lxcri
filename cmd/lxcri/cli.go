@@ -838,7 +838,7 @@ func configCmd() *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "user",
-				Usage: "use non-root configuration for default",
+				Usage: "use non-root default configuration",
 				Value: os.Getuid() != 0,
 			},
 			&cli.BoolFlag{
