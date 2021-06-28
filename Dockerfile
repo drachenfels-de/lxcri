@@ -11,7 +11,7 @@ ENV PATH="/opt/go/bin:${PATH}"
 
 FROM build-base AS lxc
 ARG LXC_SRC
-ARG LXC_CONFIGURE
+#ARG LXC_CONFIGURE
 RUN apt-get install -qq --no-install-recommends --yes \
 libapparmor-dev libc6-dev libcap-dev libseccomp-dev
 WORKDIR /tmp/build

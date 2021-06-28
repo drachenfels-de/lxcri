@@ -60,7 +60,6 @@ BUILD_CMD=${BUILD_CMD:-buildah bud}
 $BUILD_CMD $@ \
 	--build-arg LXC_SRC="$DL/$LXC_SRC" \
 	--build-arg LXCRI_SRC="$DL/$LXCRI_SRC" \
-	--build-arg LXCRI_VERSION="$LXCRI_VERSION" \
 	--build-arg PREFIX="/usr/local/lxcri" \
 	--build-arg STATIC="$STATIC" \
 	--build-arg GOLANG="$DL/$GOLANG" \
