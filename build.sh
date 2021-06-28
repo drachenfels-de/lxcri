@@ -47,16 +47,18 @@ else
 fi
 
 STATIC="${STATIC:-}"
-LXC_CONFIGURE=""
+#LXC_CONFIGURE=""
 if ! [ -z $STATIC ]; then
-	LXC_CONFIGURE="--enable-static -disable-shared"
+	#LXC_CONFIGURE="--enable-static -disable-shared"
+	LXCRI_VERSION="${LXCRI_VERSION}-static"
 fi
 
 BUILD_TAG=${BUILD_TAG:-github.com/lxc/lxcri:$LXCRI_VERSION}
 BUILD_CMD=${BUILD_CMD:-buildah bud}
+
+#--build-arg LXC_CONFIGURE="$LXC_CONFIGURE" \
 $BUILD_CMD $@ \
 	--build-arg LXC_SRC="$DL/$LXC_SRC" \
-	--build-arg LXC_CONFIGURE="$LXC_CONFIGURE" \
 	--build-arg LXCRI_SRC="$DL/$LXCRI_SRC" \
 	--build-arg LXCRI_VERSION="$LXCRI_VERSION" \
 	--build-arg PREFIX="/usr/local/lxcri" \
