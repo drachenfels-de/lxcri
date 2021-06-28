@@ -284,6 +284,9 @@ func NewSpecProcess(cmd string, args ...string) *specs.Process {
 	proc := new(specs.Process)
 	proc.Args = append(proc.Args, cmd)
 	proc.Args = append(proc.Args, args...)
+	proc.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/bin:/sbin:/bin",
+	}
 	proc.Cwd = "/"
 	return proc
 }

@@ -5,7 +5,7 @@ LIBEXEC_BINS := lxcri-start lxcri-init lxcri-hook lxcri-hook-builtin
 # Installation prefix for BINS
 PREFIX ?= /usr/local
 export PREFIX
-LIBEXEC_DIR = $(PREFIX)/libexec/lxcri
+LIBEXEC_DIR = $(PREFIX)/libexec
 export LIBEXEC_DIR
 PKG_CONFIG_PATH ?= $(PREFIX)/lib/pkgconfig
 # Note: The default pkg-config directory is search after PKG_CONFIG_PATH
@@ -13,6 +13,16 @@ PKG_CONFIG_PATH ?= $(PREFIX)/lib/pkgconfig
 export PKG_CONFIG_PATH
 VERSION ?= $(COMMIT)
 LDFLAGS=-X main.version=$(VERSION) -X github.com/lxc/lxcri.defaultLibexecDir=$(LIBEXEC_DIR)
+ifdef STATIC
+	LDFLAGS += -extldflags=-static
+	STATIC_BUILD := --static
+	# build tags for containers/storage
+	TAGS := -tags osusergo,netgo,exclude_graphdriver_btrfs,exclude_graphdriver_devicemapper
+endif
+CGO_CFLAGS=$(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config $(STATIC_BUILD) --cflags lxc)
+CGO_LDFLAGS=$(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config $(STATIC_BUILD) --libs lxc)
+export CGO_CFLAGS CGO_LDFLAGS
+
 CC ?= cc
 SHELL_SCRIPTS = $(shell find . -name \*.sh)
 GO_SRC = $(shell find . -name \*.go | grep -v _test.go)
@@ -57,10 +67,12 @@ test-privileged: build lxcri-test
 build: $(BINS) $(LIBEXEC_BINS)
 
 lxcri: go.mod $(GO_SRC) Makefile
-	go build -ldflags '$(LDFLAGS)' -o $@ ./cmd/lxcri
+	go build -ldflags '$(LDFLAGS)' $(TAGS) -o $@ ./cmd/$@
 
+# NOTE -lphread and -ldl was added to lxc.pc recently
+# https://github.com/lxc/lxc/commit/c2a7a6977b819d2e9aa6bcf60e40166fc960fa7d
 lxcri-start: cmd/lxcri-start/lxcri-start.c
-	$(CC) -Werror -Wpedantic -o $@ $? $$(pkg-config --libs --cflags lxc)
+	$(CC) $(STATIC_BUILD) -Werror -Wpedantic -o $@ $? $(CGO_CFLAGS) $(CGO_LDFLAGS) -lpthread -ldl
 
 lxcri-init: go.mod $(GO_SRC) Makefile
 	CGO_ENABLED=0 go build -o $@ ./cmd/lxcri-init
@@ -68,19 +80,19 @@ lxcri-init: go.mod $(GO_SRC) Makefile
 	! ldd $@  2>/dev/null
 
 lxcri-hook: go.mod $(GO_SRC) Makefile
-	go build -o $@ ./cmd/$@
+	CGO_ENABLED=0 go build -o $@ ./cmd/$@
 
 lxcri-hook-builtin: go.mod $(GO_SRC) Makefile
-	go build -o $@ ./cmd/$@
+	CGO_ENABLED=0 go build -o $@ ./cmd/$@
 
 lxcri-test: go.mod $(GO_SRC) Makefile
-	go build -o $@ ./pkg/internal/$@
+	CGO_ENABLED=0 go build -o $@ ./pkg/internal/$@
 
 install: build
 	mkdir -p $(PREFIX)/bin
-	cp -v $(BINS) $(PREFIX)/bin
+	install -v --strip $(BINS) $(PREFIX)/bin
 	mkdir -p $(LIBEXEC_DIR)
-	cp -v $(LIBEXEC_BINS) $(LIBEXEC_DIR)
+	install -v --strip $(LIBEXEC_BINS) $(LIBEXEC_DIR)
 
 .PHONY: clean
 clean:
